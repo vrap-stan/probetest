@@ -4,10 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lightmap Edit2</title>
-    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r170/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/js/loaders/DRACOLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.170.0/examples/js/loaders/KTX2Loader.js"></script> -->
     <script type="importmap">
       {
         "imports": {
@@ -27,7 +23,7 @@
       position: relative;
     "
   >
-    <div id="theContainer" style="width: 100%; height: 100%"></div>
+    <div id="theContainer" style="width: 100%; height: 80%"></div>
     <div
       id="thePanel"
       style="
@@ -39,11 +35,11 @@
       "
     >
       <div>
-        <button id="load512">Load 512</button>
-        <button id="load1k">Load 1k</button>
+        <!-- <button id="load512">Load 512</button>
+        <button id="load1k">Load 1k</button> -->
         <button id="load512png">Load 512 png</button>
-        <button id="load1024png">Load 1024 png</button>
-        <button id="loadMerged1">Load Merged1</button>
+        <!-- <button id="load1024png">Load 1024 png</button>
+        <button id="loadMerged1">Load Merged1</button> -->
         <input
           type="range"
           min="0.8"
@@ -56,307 +52,27 @@
       <div style="background-color: white">Status : <span id="st"></span></div>
     </div>
 
-    <script type="module">
-      import * as THREE from "three";
-      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-      import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
-      import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
-      import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+    <div
+      id="bottomPanel"
+      style="
+        background-color: #f0f0f0f0;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        max-height: 20%;
+        overflow-y: auto;
+        padding: 8px;
+        box-sizing: border-box;
+      "
+    >
+      <div id="camDirection"></div>
+      <div id="camPosition"></div>
+      <div id="matWorld"></div>
+      <!-- <button onclick="console.log(camera.)">Speak</button> -->
+      <button id="btnApplyMirror">Apply Mirror</button>
+    </div>
 
-      // const base = "https://d1ru9emggadhd3.cloudfront.net/models/lmedit/";
-      const base =
-        "https://vra-configurator-dev.s3.ap-northeast-2.amazonaws.com/models/lmedit/clipped/";
-      const src1k = "clipped_1k/meta.json";
-      const src512 = "clipped_512/meta.json";
-      const srcMerged1 = "merged1/meta.json";
-      const src512png = "clipped_512_png/meta.json";
-      const src1024png = "clipped_1024_png/meta.json";
-
-      let scene, camera, renderer, controls;
-      let gltfLoader, ktx;
-      const textureLoader = new THREE.TextureLoader();
-      // const textureLoader = new THREE.DataTextureLoader();
-
-      function status(msg) {
-        st.innerHTML = msg;
-      }
-
-      function clearScene() {
-        if (scene) {
-          const flattened = [];
-          scene.traverse((obj) => {
-            if (obj.isMesh) {
-              flattened.push(obj);
-            }
-          });
-
-          let disposeCount = 0;
-          for (let i = 0; i < flattened.length; i++) {
-            disposeCount++;
-            scene.remove(flattened[i]);
-            flattened[i].geometry.dispose();
-            if (flattened[i].material) {
-              const material = flattened[i].material;
-              for (const key of Object.keys(material)) {
-                const value = material[key];
-                if (
-                  value &&
-                  typeof value === "object" &&
-                  "minFilter" in value
-                ) {
-                  value.dispose();
-                }
-              }
-              flattened[i].material.dispose();
-            }
-          }
-          status(`Disposed ${disposeCount} objects`);
-        }
-      }
-
-      function init() {
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(
-          75,
-          window.innerWidth / window.innerHeight,
-          0.1,
-          1000
-        );
-        camera.position.set(0, 2, 5);
-
-        renderer = new THREE.WebGLRenderer({
-          antialias: true,
-          alpha: true,
-          premultipliedAlpha: true,
-          stencil: false,
-          preserveDrawingBuffer: false,
-          powerPreference: "high-performance",
-          depth: true,
-          failIfMajorPerformanceCaveat: false,
-          toneMappingExposure: 1,
-          localClippingEnabled: false,
-        });
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        theContainer.appendChild(renderer.domElement);
-
-        controls = new OrbitControls(camera, renderer.domElement);
-
-        if (!ktx) {
-          ktx = new KTX2Loader();
-          ktx.setTranscoderPath(
-            "https://unpkg.com/three@0.170.0/examples/jsm/libs/basis/"
-          );
-          ktx.detectSupport(renderer);
-          const maxWorker = navigator.hardwareConcurrency || 4;
-          status(
-            `Worker limit : ${maxWorker}/${navigator.hardwareConcurrency}`
-          );
-          ktx.setWorkerLimit(maxWorker);
-        }
-
-        if (!gltfLoader) {
-          gltfLoader = new GLTFLoader();
-          const draco = new DRACOLoader();
-          draco.setDecoderPath(
-            "https://www.gstatic.com/draco/versioned/decoders/1.5.7/"
-          );
-          gltfLoader.setDRACOLoader(draco);
-          gltfLoader.setKTX2Loader(ktx);
-          gltfLoader.setMeshoptDecoder(MeshoptDecoder);
-        }
-      }
-
-      function withoutExtension(path) {
-        // key.replace(/\.[^/.]+$/, "");
-        return path.replace(/\.[^/.]+$/, "");
-      }
-
-      // async function getMetas() {
-      //   const metaPath = "try5/metas.json";
-      //   const metas = await fetch(base + metaPath)
-      //     .then((res) => res.json())
-      //     .catch((err) => {
-      //       return undefined;
-      //     });
-
-      //   if (!metas) {
-      //     console.warn("메타 없음, 아마 s3에 파일없음:", metaPath);
-      //     return {};
-      //   }
-
-      //   // metas : { "주방.01.light.exr" : 130.5, ... }
-      //   for (let key of Object.keys(metas)) {
-      //     const keyWoExt = withoutExtension(key);
-      //     metas[keyWoExt] = metas[key];
-
-      //     delete metas[key];
-      //   }
-      //   // console.log(metas);
-
-      //   return metas;
-      // }
-      // const metas = await getMetas();
-
-      async function loadModel(model, path) {
-        const { glb, lightmap, lightmapIntensity } = model;
-
-        // glb는 clipped_1k에만 올려놨음
-        const glbPath = path.includes("clipped") ? "clipped_1k/" : path;
-        return gltfLoader.loadAsync(base + glbPath + glb).then((gltf) => {
-          scene.add(gltf.scene);
-
-          gltf.scene.traverse((obj) => {
-            if (obj.isMesh) {
-              const mat = obj.material;
-              if (mat) {
-                for (const key of Object.keys(mat)) {
-                  const value = mat[key];
-                  if (
-                    value &&
-                    typeof value === "object" &&
-                    "minFilter" in value &&
-                    "magFilter" in value &&
-                    "anisotropy" in value
-                  ) {
-                    value.minFilter = THREE.LinearMipmapLinearFilter;
-                    value.magFilter = THREE.LinearFilter;
-                    value.anisotropy = renderer.capabilities.getMaxAnisotropy();
-                  }
-                }
-              }
-            }
-          });
-
-          if (lightmap) {
-            if (!lightmapIntensity) {
-              debugger;
-            }
-            if (lightmap.endsWith(".ktx2")) {
-              ktx.load(base + path + lightmap, (texture) => {
-                gltf.scene.traverse((obj) => {
-                  if (obj.isMesh) {
-                    texture.flipY = false;
-                    texture.channel = 1;
-                    texture.minFilter = THREE.LinearMipmapLinearFilter;
-                    texture.magFilter = THREE.LinearFilter;
-                    texture.anisotropy =
-                      renderer.capabilities.getMaxAnisotropy();
-                    texture.needsUpdate = true;
-
-                    obj.material.lightMap = texture;
-                    obj.material.lightMapIntensity = lightmapIntensity ?? 1;
-                    if (lightmapIntensity) {
-                      obj.material.userData.lightmapIntensity =
-                        lightmapIntensity;
-                    }
-                    obj.material.needsUpdate = true;
-                  }
-                });
-              });
-            } else {
-              textureLoader.load(base + path + lightmap, (texture) => {
-                gltf.scene.traverse((obj) => {
-                  if (obj.isMesh) {
-                    texture.flipY = false;
-                    texture.minFilter = THREE.LinearMipmapLinearFilter;
-                    texture.magFilter = THREE.LinearFilter;
-                    texture.anisotropy =
-                      renderer.capabilities.getMaxAnisotropy();
-                    texture.channel = 1;
-                    texture.needsUpdate = true;
-
-                    obj.material.lightMap = texture;
-                    obj.material.lightMapIntensity = lightmapIntensity ?? 1;
-                    if (lightmapIntensity) {
-                      obj.material.userData.lightmapIntensity =
-                        lightmapIntensity;
-                    }
-                    obj.material.needsUpdate = true;
-                  }
-                });
-              });
-            }
-          }
-        });
-      }
-
-      function animate() {
-        requestAnimationFrame(animate);
-        renderer.render(scene, camera);
-      }
-
-      function theLoader(remoteSrc, path) {
-        const start = performance.now();
-
-        fetch(remoteSrc)
-          .then((res) => res.json())
-          .then(async (data) => {
-            const models = data.models;
-
-            let prev = performance.now();
-            for (let i = 0; i < models.length; i++) {
-              const { glb } = models[i];
-
-              status(
-                `Loading [${i + 1}/${models.length}] ${withoutExtension(glb)}`
-              );
-              await loadModel(models[i], path);
-              // while (performance.now() - prev < 150) {
-              //   await new Promise((resolve) => setTimeout(resolve, 10));
-              // }
-              // prev = performance.now();
-            }
-          })
-          .finally(() => {
-            const elapsed = performance.now() - start;
-            status(`Loaded in ${elapsed.toFixed(2)} ms`);
-          });
-      }
-
-      document.getElementById("load512").addEventListener("click", () => {
-        theLoader(base + src512, "clipped_512/");
-      });
-
-      document.getElementById("load1k").addEventListener("click", () => {
-        theLoader(base + src1k, "clipped_1k/");
-      });
-
-      document.getElementById("loadMerged1").addEventListener("click", () => {
-        theLoader(base + srcMerged1, "merged1/");
-      });
-
-      document.getElementById("load512png").addEventListener("click", () => {
-        theLoader(base + src512png, "clipped_512_png/");
-      });
-
-      document.getElementById("load1024png").addEventListener("click", () => {
-        theLoader(base + src1024png, "clipped_1024_png/");
-      });
-
-      document.getElementById("exposure").addEventListener("input", (e) => {
-        const val = parseFloat(e.target.value);
-        scene.traverse((o) => {
-          if (o.isMesh) {
-            const mat = o.material;
-            if (mat) {
-              if (mat.userData.lightmapIntensity) {
-                mat.lightMapIntensity = mat.userData.lightmapIntensity * val;
-              }
-            }
-          }
-        });
-      });
-
-      window.addEventListener("resize", () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
-
-      init();
-      animate();
-    </script>
+    <script type="module" src="main.js"></script>
   </body>
 </html>
