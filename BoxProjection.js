@@ -1,4 +1,5 @@
 import * as THREE from "three"
+import Frag from "Frag";
 
 
 // credits for the box-projecting shader code go to codercat (https://codercat.tk)
@@ -57,6 +58,8 @@ const getIBLRadiance_patch = /* glsl */`
 `;
 
 export default function useBoxProjectedEnvMap(shader, envMapPosition, envMapSize) {
+
+
     // defines
     shader.defines.BOX_PROJECTED_ENV_MAP = true;
 
@@ -86,14 +89,57 @@ export default function useBoxProjectedEnvMap(shader, envMapPosition, envMapSize
             "vec3 worldNormal = inverseTransformDirection( normal, viewMatrix );",
             `
             vec3 worldNormal = inverseTransformDirection( normal, viewMatrix );
-            ${getIBLIrradiance_patch}
+            #ifdef BOX_PROJECTED_ENV_MAP
+                worldNormal = parallaxCorrectNormal( worldNormal, envMapSize, envMapPosition );
+            #endif
             `
         )
         .replace(
             "reflectVec = inverseTransformDirection( reflectVec, viewMatrix );",
             `
             reflectVec = inverseTransformDirection( reflectVec, viewMatrix );
-            ${getIBLRadiance_patch}
+            #ifdef BOX_PROJECTED_ENV_MAP
+                reflectVec = parallaxCorrectNormal( reflectVec, envMapSize, envMapPosition );
+            #endif
             `
         );
+
+    // shader.fragmentShader = Frag;
+
+    shader.fragmentShader = shader.fragmentShader.replace("#include <dithering_fragment>",
+        /** glsl */`#include <dithering_fragment>
+        #ifdef BOX_PROJECTED_ENV_MAP
+        
+
+        float roughness = material.roughness;
+        
+        vec3 reflectVec = reflect( - geometryViewDir, geometryNormal );
+        reflectVec = normalize( mix( reflectVec, geometryNormal, roughness * roughness) );
+        reflectVec = inverseTransformDirection( reflectVec, viewMatrix );
+        
+        #ifdef BOX_PROJECTED_ENV_MAP
+            reflectVec = parallaxCorrectNormal( reflectVec, envMapSize, envMapPosition );
+        #endif
+        
+        
+        vec4 envMapColor = textureCubeUV( envMap, envMapRotation * reflectVec, roughness );
+        // gl_FragColor.rgb = reflectVec;
+        gl_FragColor = envMapColor;
+        #endif
+        
+        `)
+
+    const downloadShader = () => {
+        // download vertex & frament shader using a tag
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([shader.vertexShader], { type: "text/plain" }));
+        a.download = "vertex.glsl";
+        a.click();
+
+        const b = document.createElement("a");
+        b.href = URL.createObjectURL(new Blob([shader.fragmentShader], { type: "text/plain" }));
+        b.download = "fragment.glsl";
+        b.click();
+    }
+
 }

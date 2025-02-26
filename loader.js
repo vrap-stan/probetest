@@ -5,8 +5,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 
-import u from "/utils.js"
-import CubeCamera from "/CubeCamera.js";
+import u from "utils"
+import CubeCamera from "CubeCamera";
 const { base, withoutExtension, iter } = u;
 
 let scene, camera, renderer, controls;

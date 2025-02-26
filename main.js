@@ -1,9 +1,9 @@
 import * as THREE from "three";
-import Utils from "/utils.js"
-import Loader from "/loader.js"
-import useBoxProjectedEnvMap from "/BoxProjection.js"
-import cubeCamera from "/CubeCamera.js";
-import PmremGenerator from "/PmremGenerator.js";
+import Utils from "utils"
+import Loader from "loader"
+import useBoxProjectedEnvMap from "BoxProjection"
+import cubeCamera from "CubeCamera";
+import PmremGenerator from "PmremGenerator";
 
 const {
     base,
@@ -150,18 +150,19 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
     // generator.compileCubemapShader();
     // generator.compileEquirectangularShader();
     // debugger;
-    const generator = PmremGenerator;
+    const generator = PmremGenerator(renderer);
 
     const envMap = generator.fromCubemap(cubeTexture).texture;
 
-    console.log(envMap)
-
+    console.log(cubeTexture, envMap)
+    // debugger;
+    
     meshes.forEach(mesh => {
         const mat = mesh.material
         mat.onBeforeCompile = shader => useBoxProjectedEnvMap(shader, livingCenter, livingSize);
 
-        // mat.envMap = envMap;
-        mat.envMap = cubeTexture;
+        mat.envMap = envMap;
+        // mat.envMap = cubeTexture;
         mat.metalness = 1.0;
         mat.roughness = 0.0;
 
