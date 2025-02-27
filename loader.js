@@ -16,37 +16,39 @@ const textureLoader = new THREE.TextureLoader();
 
 // 바닥좌표 네 개
 const boxY = 2.38;
-const coordKitchen = [
-    new THREE.Vector3(1.13, 0, -4.0),
-    new THREE.Vector3(1.13, 0, -0.1),
-    new THREE.Vector3(-2.7, 0, -0.1),
-    new THREE.Vector3(-2.7, 0, -4.0),
+
+const coords = [
+    {
+        name:"kitchen",
+        min: new THREE.Vector3(-2.7, 0, -4.0),
+        max: new THREE.Vector3(1.13, 0, -0.1),
+    },
+    {
+        name:"livingRoom",
+        min: new THREE.Vector3(-3.5, 0, -0.1),
+        max: new THREE.Vector3(1.12, 0, 4.4),
+    }, 
+    {
+        name:"masterMirror",
+        min: new THREE.Vector3(-8.1, 0, 0.0),
+        max: new THREE.Vector3(-4.35, 0, 1.18),
+    }
 ];
 
-const coordLiving = [
-    new THREE.Vector3(-3.5, 0, 4.4),
-    new THREE.Vector3(-3.5, 0, -0.1),
-    new THREE.Vector3(1.12, 0, -0.1),
-    new THREE.Vector3(1.12, 0, 4.4),
-]
+export function getProbeBoxes() {
 
-function initBoxes() {
-    const kitchenMin = coordKitchen[3];
-    const kitchenBottomMax = coordKitchen[1];
-    kitchenBottomMax.y = boxY;
+    const retval = coords.map((coord) => {
+        const { min, max } = coord;
+        max.y = boxY;
+        return {
+            name: coord.name,
+            box:new THREE.Box3(min, max)
+        };
+    }
+    );
 
-    const kitchenBox = new THREE.Box3(kitchenMin, kitchenBottomMax);
-
-    const livingMin = coordLiving[1];
-    const livingMax = coordLiving[3];
-    livingMax.y = boxY;
-
-    const livingBox = new THREE.Box3(livingMin, livingMax);
-
-    return { kitchenBox, livingBox }
+    return retval;
 }
-const { kitchenBox, livingBox } = initBoxes(scene);
-
 
 
 function init(onMsg) {
@@ -232,8 +234,6 @@ export default {
     scene, camera, renderer, controls,
     gltfLoader, ktx,
     textureLoader,
-    kitchenBox,
-    livingBox,
     theLoader,
     init,
 }

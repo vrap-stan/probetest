@@ -1,23 +1,10 @@
 import * as THREE from "three"
-import Frag from "Frag";
 
 
 // credits for the box-projecting shader code go to codercat (https://codercat.tk)
 
-const worldposReplace = /* glsl */`
-#if defined( USE_ENVMAP ) || defined( DISTANCE ) || defined ( USE_SHADOWMAP )
-    vec4 worldPosition = modelMatrix * vec4( transformed, 1.0 );
-
-    #ifdef BOX_PROJECTED_ENV_MAP
-        vWorldPosition = worldPosition.xyz;
-    #endif
-#endif
-`;
-
 const boxProjectDefinitions = /*glsl */`
-#ifdef BOX_PROJECTED_ENV_MAP
-    uniform vec3 envMapSize;
-    uniform vec3 envMapPosition;
+#ifdef V_ENV_MAP
     varying vec3 vWorldPosition;
     
     vec3 parallaxCorrectNormal( vec3 v, vec3 cubeSize, vec3 cubePos ) {
@@ -57,21 +44,21 @@ const getIBLRadiance_patch = /* glsl */`
 #endif
 `;
 
-export default function useBoxProjectedEnvMap(shader, envMapPosition, envMapSize, args) {
+export default function useBoxProjectedEnvMap(shader, args) {
 
     const { uniforms, defines } = args;
 
     // defines
-    shader.defines.BOX_PROJECTED_ENV_MAP = true;
+    shader.defines.V_ENV_MAP = true;
 
     // uniforms
-    shader.uniforms.envMapPosition = {
-        value: envMapPosition
-    };
+    // shader.uniforms.envMapPosition = {
+    //     value: envMapPosition
+    // };
 
-    shader.uniforms.envMapSize = {
-        value: envMapSize
-    };
+    // shader.uniforms.envMapSize = {
+    //     value: envMapSize
+    // };
 
     shader.uniforms = {
         ...shader.uniforms,
@@ -88,7 +75,15 @@ export default function useBoxProjectedEnvMap(shader, envMapPosition, envMapSize
     shader.vertexShader = "varying vec3 vWorldPosition;\n" + shader.vertexShader
         .replace(
             "#include <worldpos_vertex>",
-            worldposReplace
+            `
+            #ifndef USE_ENVMAP
+            vec4 worldPosition = modelMatrix * vec4( transformed, 1.0 );
+            #endif
+            #ifdef V_ENV_MAP
+                vWorldPosition = worldPosition.xyz;
+            #endif
+            #include <worldpos_vertex>
+            `
         );
 
     // fragment shader
@@ -117,7 +112,7 @@ export default function useBoxProjectedEnvMap(shader, envMapPosition, envMapSize
         );
 
 
-    shader.fragmentShader = shader.fragmentShader.replace("void main()", 
+    shader.fragmentShader = shader.fragmentShader.replace("void main()",
         `
         struct Probe {
             vec3 center;
@@ -134,7 +129,7 @@ void main()
     ).replace("#include <dithering_fragment>",
         /** glsl */`#include <dithering_fragment>
 
-        #ifdef BOX_PROJECTED_ENV_MAP
+        #ifdef V_ENV_MAP
         
         // #define DST 1
         // samplerCube envMap = uProbe[DST].cubeTexture;
@@ -146,40 +141,40 @@ void main()
         float roughness = material.roughness;
         
         // iblIrradiance
-        if ( false ) {
-            vec3 worldNormal = inverseTransformDirection( geometryNormal, viewMatrix );
+        // if ( false ) {
+        //     vec3 worldNormal = inverseTransformDirection( geometryNormal, viewMatrix );
 
-            worldNormal = parallaxCorrectNormal( worldNormal, envMapSize, envMapPosition );
+        //     worldNormal = parallaxCorrectNormal( worldNormal, envMapSize, envMapPosition );
             
-            vec4 envMapColor = textureCubeUV( envMap, envMapRotation * worldNormal, 1.0 );
+        //     vec4 envMapColor = textureCubeUV( envMap, envMapRotation * worldNormal, 1.0 );
             
-            vec3 iblIrradiance = PI * envMapColor.rgb * envMapIntensity;
+        //     vec3 iblIrradiance = PI * envMapColor.rgb * envMapIntensity;
 
-            gl_FragColor.rgb = iblIrradiance;
-        }
+        //     gl_FragColor.rgb = iblIrradiance;
+        // }
 
-        float dist = 9999.0;
-        int probeIndex = -1;
+        float dists[PROBE_COUNT];
+        float distTotal = 0.0;
+
         for (int i = 0; i < PROBE_COUNT; i++) {
         
             // pick closest uProbe
             vec3 probeCenter = uProbe[i].center;
             vec3 probeSize = uProbe[i].size;
-            float _dist = distance(probeCenter, vWorldPosition);
-
-            if (_dist < dist) {
-                dist = _dist;
-                probeIndex = i;
-            }
+            float dist = distance(probeCenter.xz, vWorldPosition.xz);
+            dists[i] = 1.0 / (dist * dist * dist);
+            distTotal += dists[i];
         }
 
-        vec3 _envMapPosition = uProbe[probeIndex].center;
-        vec3 _envMapSize = uProbe[probeIndex].size;
+        
         mat3 _envMapRotation = mat3(1.0);
 
-        if ( true ) {
+        vec4 envMapColor = vec4(0.0);
 
-            // geometryViewDir, geometryNormal, material.roughness
+        #pragma unroll_loop_start
+        for (int i = 0; i < PROBE_COUNT; i++) {
+            vec3 _envMapPosition = uProbe[i].center;
+            vec3 _envMapSize = uProbe[i].size;
 
             vec3 reflectVec = reflect( - geometryViewDir, geometryNormal );
 
@@ -188,24 +183,72 @@ void main()
             reflectVec = inverseTransformDirection( reflectVec, viewMatrix );
 
             reflectVec = parallaxCorrectNormal( reflectVec, _envMapSize, _envMapPosition );
-            
-            // vec4 envMapColor = textureCubeUV( envMap, _envMapRotation * reflectVec, roughness );
-            
-            vec4 envMapColor = vec4(0.0);
 
-            if(probeIndex==0){
-                envMapColor = textureCube( uProbeTextures[0], _envMapRotation * reflectVec, roughness );
-            } else if(probeIndex==1){
-                envMapColor = textureCube( uProbeTextures[1], _envMapRotation * reflectVec, roughness );
-            } else {
+            float thisWeight = dists[i] / distTotal;
+
+            //reflectFactor : 프로브 반대방향으로 반사하면 색을 0
+            vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+
+            vec3 reflectVec_ = reflect( - geometryViewDir, geometryNormal );
+
+            // float reflectFactor = dot(reflectVec, (_envMapPosition - vWorldPosition));
+
+            // reflectFactor = clamp(reflectFactor, 0.0, 1.0);
+
+            // reflectFactor = reflectFactor * reflectFactor * (3.0 - 2.0 * reflectFactor);
+
+            // thisWeight *= reflectFactor;
+            //!reflectFactor
+
+            if(i == 0){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[0], _envMapRotation * reflectVec, roughness );
+
+            }
+            #if PROBE_COUNT > 1
+            else if( i == 1){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[1], _envMapRotation * reflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 2
+            else if( i == 2){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[2], _envMapRotation * reflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 3
+            else if( i == 3){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[3], _envMapRotation * reflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 4
+            else if( i == 4){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[4], _envMapRotation * reflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 5
+            else if( i == 5){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[5], _envMapRotation * reflectVec, roughness );
+
+            }
+            #endif
+            else {
+
                 envMapColor = vec4(0.0);
             }
-
-            // vec4 envMapColor = textureCubeUV( myenv2, _envMapRotation * reflectVec, roughness );
-
-            gl_FragColor.rgb = envMapColor.rgb * envMapIntensity;
-            // gl_FragColor.rgb = normalize(_envMapPosition);
         }
+        #pragma unroll_loop_end
+
+        float envMapIntensity = 1.0;
+        gl_FragColor.rgb = envMapColor.rgb * envMapIntensity;
 
         #endif
         

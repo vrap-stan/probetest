@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import Utils from "utils"
-import Loader from "loader"
+import Loader, { getProbeBoxes } from "loader"
 import useBoxProjectedEnvMap from "BoxProjection"
 import cubeCamera from "CubeCamera";
 import PmremGenerator from "PmremGenerator";
@@ -22,7 +22,7 @@ const {
     theLoader,
     init
 } = Loader;
-const { kitchenBox, livingBox } = Loader;
+
 
 // const base = "https://d1ru9emggadhd3.cloudfront.net/models/lmedit/";
 
@@ -82,7 +82,7 @@ function onPointerClick(event) {
 
     if (intersects.length > 0) {
         // console.log(intersects[0]);
-        console.log(intersects[0].point, intersects[0], );
+        console.log(intersects[0].point, intersects[0],);
     }
 }
 
@@ -147,16 +147,8 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
         }
     }
 
-    const living = calcBox(livingBox, 0xff0000);
-    // const kitchen = calcBox(livingBox, 0x00ff00);
-    const kitchen = calcBox(kitchenBox, 0x00ff00);
-
-    const { center: livingCenter, size: livingSize } = living;
-    const { center: kitchenCenter, size: kitchenSize } = kitchen;
-
-
-    const cubeCapture = (center) => {
-        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(512, {
+    const cubeCapture = (center/**THREE.Vector3 */) => {
+        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(128, {
             format: THREE.RGBFormat,
             generateMipmaps: true,
             minFilter: THREE.LinearMipmapLinearFilter,
@@ -175,52 +167,42 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
 
         // const envMap = generator.fromCubemap(cubeTexture).texture;
 
-        
-
         return {
             cubeTexture,
             // envTexture: envMap
         }
     }
 
-    const livingTex = cubeCapture(livingCenter);
-    const kitchenTex = cubeCapture(kitchenCenter);
-
-    const livingProbe = {
-        center: livingCenter,
-        size: livingSize,
-        ...livingTex
-        // envTexture: livingTex.envTexture
-    }
-    const kitchenProbe = {
-        center: kitchenCenter,
-        size: kitchenSize,
-        ...kitchenTex
-        // envTexture: kitchenTex.envTexture
-    }
-    // const probes = [livingProbe, kitchenProbe];
-    const probes = [livingProbe, kitchenProbe];
-    console.log(probes)
+    // [ { name : string; box: THREE.Box3 },  ]
+    const probeBoxes = getProbeBoxes();
+    const probeMeta = probeBoxes.map(probe => {
+        return {
+            center: probe.box.getCenter(new THREE.Vector3()),
+            size: probe.box.getSize(new THREE.Vector3())
+        }
+    })
+    
+    const textures = probeBoxes.map(probe => {
+        return cubeCapture(probe.box.getCenter(new THREE.Vector3())).cubeTexture
+    });
 
     const uniforms = {
         uProbe: {
-            value: probes.map(probe => {
-                return {
-                    center: probe.center,
-                    size: probe.size
-                }
-            })
+            value: probeMeta
         },
-        uProbeTextures:{
-            value:probes.map(probe=>probe.cubeTexture)
+        uProbeTextures: {
+            value: textures
         }
     }
 
     const defines = {
-        PROBE_COUNT: probes.length
+        PROBE_COUNT: probeBoxes.length
     }
 
     // debugger;
+
+    // debugger;
+
 
     meshes.forEach(mesh => {
         const mat = mesh.material;
@@ -230,12 +212,11 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
             ...defines
         }
 
-        mat.onBeforeCompile = shader => useBoxProjectedEnvMap(shader, livingCenter, livingSize, {
+        mat.onBeforeCompile = shader => useBoxProjectedEnvMap(shader, {
             uniforms,
-            defines
         });
 
-        mat.envMap = livingTex.cubeTexture;
+        // mat.envMap = livingTex.cubeTexture;
         // mat.envMap = cubeTexture;
         mat.metalness = 1.0;
         mat.roughness = 0.0;
