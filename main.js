@@ -81,7 +81,8 @@ function onPointerClick(event) {
     const intersects = raycaster.intersectObjects(scene.children, true);
 
     if (intersects.length > 0) {
-        console.log(intersects[0]);
+        // console.log(intersects[0]);
+        console.log(intersects[0].point, intersects[0], );
     }
 }
 
@@ -105,63 +106,128 @@ document.getElementById("exposure").addEventListener("input", (e) => {
 
 document.getElementById("btnApplyMirror").addEventListener("click", () => {
 
-    let floor;
-    let livingWall;
-    scene.traverse(o => {
-        if (o.isMesh) {
-            if (o.name === "바닥") {
-                floor = o;
-            }
+    const names = [
+        "거실base_9",
+        "바닥",
+        "주방DP_냉장고수납장_1",
+        "주방DP_식탁_1",
+        "거실base_1"
+    ]
 
-            if (o.name === "거실base_9") {
-                livingWall = o;
-            }
+    const meshes = []
+
+    scene.traverse(o => {
+        if (o.isMesh && names.includes(o.name)) {
+            meshes.push(o);
         }
     })
 
-    if (!floor) {
-        console.warn("바닥 없음");
+    if (meshes.length !== names.length) {
+        console.warn("못 찾은 메쉬가 있습니다.");
+        console.warn(names)
+        console.warn(meshes.map(o => o.name))
         return;
     }
 
-    const meshes = [
-        floor, livingWall
-    ]
-
     // console.log(floor);
-    const livingCenter = livingBox.getCenter(new THREE.Vector3());
-    const livingSize = livingBox.getSize(new THREE.Vector3());
+    const calcBox = (box, color) => {
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
 
-    // add red sphere to livingCenter
-    const sphere = new THREE.Mesh(
-        new THREE.SphereGeometry(0.1),
-        new THREE.MeshBasicMaterial({ color: 0xff0000 })
-    );
-    sphere.position.copy(livingCenter);
-    scene.add(sphere);
+        // add red sphere to center
+        const sphere = new THREE.Mesh(
+            new THREE.SphereGeometry(0.05),
+            new THREE.MeshBasicMaterial({ color })
+        );
+        sphere.position.copy(center);
+        scene.add(sphere);
 
-    // capture envmap
+        return {
+            center, size
+        }
+    }
 
-    cubeCamera.position.copy(livingCenter);
-    cubeCamera.update(renderer, scene);
-    const cubeTexture = cubeCamera.renderTarget.textures[0];;
+    const living = calcBox(livingBox, 0xff0000);
+    // const kitchen = calcBox(livingBox, 0x00ff00);
+    const kitchen = calcBox(kitchenBox, 0x00ff00);
 
-    // const generator = new THREE.PMREMGenerator(renderer);
-    // generator.compileCubemapShader();
-    // generator.compileEquirectangularShader();
+    const { center: livingCenter, size: livingSize } = living;
+    const { center: kitchenCenter, size: kitchenSize } = kitchen;
+
+
+    const cubeCapture = (center) => {
+        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(512, {
+            format: THREE.RGBFormat,
+            generateMipmaps: true,
+            minFilter: THREE.LinearMipmapLinearFilter,
+            magFilter: THREE.LinearFilter,
+        });
+        const cubeCamera = new THREE.CubeCamera(0.1, 10, cubeRenderTarget);
+        cubeCamera.position.copy(center);
+        cubeCamera.update(renderer, scene);
+        const cubeTexture = cubeCamera.renderTarget.textures[0];
+
+        // const generator = new THREE.PMREMGenerator(renderer);
+        // generator.compileCubemapShader();
+        // generator.compileEquirectangularShader();
+        // debugger;
+        // const generator = PmremGenerator(renderer);
+
+        // const envMap = generator.fromCubemap(cubeTexture).texture;
+
+        
+
+        return {
+            cubeTexture,
+            // envTexture: envMap
+        }
+    }
+
+    const livingTex = cubeCapture(livingCenter);
+    const kitchenTex = cubeCapture(kitchenCenter);
+
+    const livingProbe = {
+        center: livingCenter,
+        size: livingSize,
+        ...livingTex
+        // envTexture: livingTex.envTexture
+    }
+    const kitchenProbe = {
+        center: kitchenCenter,
+        size: kitchenSize,
+        ...kitchenTex
+        // envTexture: kitchenTex.envTexture
+    }
+    // const probes = [livingProbe, kitchenProbe];
+    const probes = [livingProbe, kitchenProbe];
+    console.log(probes)
+
+    const uniforms = {
+        probe: {
+            value: probes
+        },
+    }
+
+    const defines = {
+        PROBE_COUNT: probes.length
+    }
+
     // debugger;
-    const generator = PmremGenerator(renderer);
 
-    const envMap = generator.fromCubemap(cubeTexture).texture;
-
-    console.log(cubeTexture, envMap)
-    // debugger;
-    
     meshes.forEach(mesh => {
-        const mat = mesh.material
-        mat.onBeforeCompile = shader => useBoxProjectedEnvMap(shader, livingCenter, livingSize);
+        const mat = mesh.material;
 
-        mat.envMap = envMap;
+        mat.defines = {
+            ...(mat.defines ?? {}),
+            ...defines
+        }
+
+        mat.onBeforeCompile = shader => useBoxProjectedEnvMap(shader, livingCenter, livingSize, {
+            uniforms,
+            defines
+        });
+
+        mat.envMap = livingTex.cubeTexture;
         // mat.envMap = cubeTexture;
         mat.metalness = 1.0;
         mat.roughness = 0.0;

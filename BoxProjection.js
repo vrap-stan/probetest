@@ -57,8 +57,9 @@ const getIBLRadiance_patch = /* glsl */`
 #endif
 `;
 
-export default function useBoxProjectedEnvMap(shader, envMapPosition, envMapSize) {
+export default function useBoxProjectedEnvMap(shader, envMapPosition, envMapSize, args) {
 
+    const { uniforms, defines } = args;
 
     // defines
     shader.defines.BOX_PROJECTED_ENV_MAP = true;
@@ -71,6 +72,17 @@ export default function useBoxProjectedEnvMap(shader, envMapPosition, envMapSize
     shader.uniforms.envMapSize = {
         value: envMapSize
     };
+
+    shader.uniforms = {
+        ...shader.uniforms,
+        ...uniforms,
+        // myenv1:{
+        //     value:uniforms["probe"].value[0].cubeTexture
+        // },
+        // myenv2:{
+        //     value:uniforms["probe"].value[1].cubeTexture
+        // }
+    }
 
     // vertex shader
     shader.vertexShader = "varying vec3 vWorldPosition;\n" + shader.vertexShader
@@ -104,29 +116,73 @@ export default function useBoxProjectedEnvMap(shader, envMapPosition, envMapSize
             `
         );
 
-    // shader.fragmentShader = Frag;
 
-    shader.fragmentShader = shader.fragmentShader.replace("#include <dithering_fragment>",
+    shader.fragmentShader = shader.fragmentShader.replace("void main()", 
+        `
+        struct Probe {
+            vec3 center;
+            vec3 size;
+            samplerCube cubeTexture;
+            // sampler2D envTexture;
+        };
+        uniform Probe probe[PROBE_COUNT];
+        // uniform sampler2D myenv1;
+        // uniform sampler2D myenv2;
+void main()
+        `
+    ).replace("#include <dithering_fragment>",
         /** glsl */`#include <dithering_fragment>
+
         #ifdef BOX_PROJECTED_ENV_MAP
         
+        #define DST 1
+        // samplerCube envMap = probe[DST].cubeTexture;
+        vec3 _envMapPosition = probe[DST].center;
+        vec3 _envMapSize = probe[DST].size;
+        mat3 _envMapRotation = mat3(1.0);
+
 
         float roughness = material.roughness;
         
-        vec3 reflectVec = reflect( - geometryViewDir, geometryNormal );
-        reflectVec = normalize( mix( reflectVec, geometryNormal, roughness * roughness) );
-        reflectVec = inverseTransformDirection( reflectVec, viewMatrix );
-        
-        #ifdef BOX_PROJECTED_ENV_MAP
-            reflectVec = parallaxCorrectNormal( reflectVec, envMapSize, envMapPosition );
+        // iblIrradiance
+        if ( false ) {
+            vec3 worldNormal = inverseTransformDirection( geometryNormal, viewMatrix );
+
+            worldNormal = parallaxCorrectNormal( worldNormal, envMapSize, envMapPosition );
+            
+            vec4 envMapColor = textureCubeUV( envMap, envMapRotation * worldNormal, 1.0 );
+            
+            vec3 iblIrradiance = PI * envMapColor.rgb * envMapIntensity;
+
+            gl_FragColor.rgb = iblIrradiance;
+        }
+
+        if ( true ) {
+
+            // geometryViewDir, geometryNormal, material.roughness
+
+            vec3 reflectVec = reflect( - geometryViewDir, geometryNormal );
+
+            reflectVec = normalize( mix( reflectVec, geometryNormal, roughness * roughness) );
+
+            reflectVec = inverseTransformDirection( reflectVec, viewMatrix );
+
+            reflectVec = parallaxCorrectNormal( reflectVec, _envMapSize, _envMapPosition );
+            
+            // vec4 envMapColor = textureCubeUV( envMap, _envMapRotation * reflectVec, roughness );
+            
+            vec4 envMapColor = textureCube( probe[DST].cubeTexture, _envMapRotation * reflectVec, roughness );
+
+            // vec4 envMapColor = textureCubeUV( myenv2, _envMapRotation * reflectVec, roughness );
+
+            gl_FragColor.rgb = envMapColor.rgb * envMapIntensity;
+            // gl_FragColor.rgb = normalize(_envMapPosition);
+        }
+
         #endif
         
-        
-        vec4 envMapColor = textureCubeUV( envMap, envMapRotation * reflectVec, roughness );
-        // gl_FragColor.rgb = reflectVec;
-        gl_FragColor = envMapColor;
-        #endif
-        
+
+
         `)
 
     const downloadShader = () => {

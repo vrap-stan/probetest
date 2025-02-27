@@ -15,19 +15,19 @@ const textureLoader = new THREE.TextureLoader();
 // const textureLoader = new THREE.DataTextureLoader();
 
 // 바닥좌표 네 개
-const boxY = 2.6;
+const boxY = 2.38;
 const coordKitchen = [
-    new THREE.Vector3(1.13, 0, -3.7),
+    new THREE.Vector3(1.13, 0, -4.0),
     new THREE.Vector3(1.13, 0, -0.1),
     new THREE.Vector3(-2.7, 0, -0.1),
-    new THREE.Vector3(-2.7, 0, -3.7),
+    new THREE.Vector3(-2.7, 0, -4.0),
 ];
 
 const coordLiving = [
     new THREE.Vector3(-3.5, 0, 4.4),
-    new THREE.Vector3(-3.5, 0, 1.1),
-    new THREE.Vector3(1.02, 0, 1.1),
-    new THREE.Vector3(1.02, 0, 4.4),
+    new THREE.Vector3(-3.5, 0, -0.1),
+    new THREE.Vector3(1.12, 0, -0.1),
+    new THREE.Vector3(1.12, 0, 4.4),
 ]
 
 function initBoxes() {
@@ -204,6 +204,8 @@ function theLoader(remoteSrc, path, onMsg) {
         .then(async (data) => {
             // const models = data.models;
             const models = [
+                ...data.models.slice(47, 48),
+
                 ...data.models.slice(5,8),
                 ...data.models.slice(15,18),
                 ...data.models.slice(33,40),
