@@ -203,9 +203,17 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
     console.log(probes)
 
     const uniforms = {
-        probe: {
-            value: probes
+        uProbe: {
+            value: probes.map(probe => {
+                return {
+                    center: probe.center,
+                    size: probe.size
+                }
+            })
         },
+        uProbeTextures:{
+            value:probes.map(probe=>probe.cubeTexture)
+        }
     }
 
     const defines = {

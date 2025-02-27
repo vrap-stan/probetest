@@ -122,10 +122,11 @@ export default function useBoxProjectedEnvMap(shader, envMapPosition, envMapSize
         struct Probe {
             vec3 center;
             vec3 size;
-            samplerCube cubeTexture;
+            // samplerCube cubeTexture;
             // sampler2D envTexture;
         };
-        uniform Probe probe[PROBE_COUNT];
+        uniform Probe uProbe[PROBE_COUNT];
+        uniform samplerCube uProbeTextures[PROBE_COUNT];
         // uniform sampler2D myenv1;
         // uniform sampler2D myenv2;
 void main()
@@ -135,11 +136,11 @@ void main()
 
         #ifdef BOX_PROJECTED_ENV_MAP
         
-        #define DST 1
-        // samplerCube envMap = probe[DST].cubeTexture;
-        vec3 _envMapPosition = probe[DST].center;
-        vec3 _envMapSize = probe[DST].size;
-        mat3 _envMapRotation = mat3(1.0);
+        // #define DST 1
+        // samplerCube envMap = uProbe[DST].cubeTexture;
+        // vec3 _envMapPosition = uProbe[DST].center;
+        // vec3 _envMapSize = uProbe[DST].size;
+        // mat3 _envMapRotation = mat3(1.0);
 
 
         float roughness = material.roughness;
@@ -157,6 +158,25 @@ void main()
             gl_FragColor.rgb = iblIrradiance;
         }
 
+        float dist = 9999.0;
+        int probeIndex = -1;
+        for (int i = 0; i < PROBE_COUNT; i++) {
+        
+            // pick closest uProbe
+            vec3 probeCenter = uProbe[i].center;
+            vec3 probeSize = uProbe[i].size;
+            float _dist = distance(probeCenter, vWorldPosition);
+
+            if (_dist < dist) {
+                dist = _dist;
+                probeIndex = i;
+            }
+        }
+
+        vec3 _envMapPosition = uProbe[probeIndex].center;
+        vec3 _envMapSize = uProbe[probeIndex].size;
+        mat3 _envMapRotation = mat3(1.0);
+
         if ( true ) {
 
             // geometryViewDir, geometryNormal, material.roughness
@@ -171,7 +191,15 @@ void main()
             
             // vec4 envMapColor = textureCubeUV( envMap, _envMapRotation * reflectVec, roughness );
             
-            vec4 envMapColor = textureCube( probe[DST].cubeTexture, _envMapRotation * reflectVec, roughness );
+            vec4 envMapColor = vec4(0.0);
+
+            if(probeIndex==0){
+                envMapColor = textureCube( uProbeTextures[0], _envMapRotation * reflectVec, roughness );
+            } else if(probeIndex==1){
+                envMapColor = textureCube( uProbeTextures[1], _envMapRotation * reflectVec, roughness );
+            } else {
+                envMapColor = vec4(0.0);
+            }
 
             // vec4 envMapColor = textureCubeUV( myenv2, _envMapRotation * reflectVec, roughness );
 
