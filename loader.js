@@ -19,20 +19,25 @@ const boxY = 2.38;
 
 const coords = [
     {
-        name:"kitchen",
+        name: "kitchen",
         min: new THREE.Vector3(-2.7, 0, -4.0),
         max: new THREE.Vector3(1.13, 0, -0.1),
     },
     {
-        name:"livingRoom",
+        name: "livingRoom",
         min: new THREE.Vector3(-3.5, 0, -0.1),
         max: new THREE.Vector3(1.12, 0, 4.4),
-    }, 
-    {
-        name:"masterMirror",
-        min: new THREE.Vector3(-8.1, 0, 0.0),
-        max: new THREE.Vector3(-4.35, 0, 1.18),
-    }
+    },
+    // {
+    //     name: "masterMirror",
+    //     min: new THREE.Vector3(-8.1, 0, 0.0),
+    //     max: new THREE.Vector3(-4.35, 0, 1.18),
+    // },
+    // {
+    //     name: "corridor",
+    //     min: new THREE.Vector3(1.03, 0, 0.0),
+    //     max: new THREE.Vector3(8.5, 0, 1.03),
+    // }
 ];
 
 export function getProbeBoxes() {
@@ -42,7 +47,7 @@ export function getProbeBoxes() {
         max.y = boxY;
         return {
             name: coord.name,
-            box:new THREE.Box3(min, max)
+            box: new THREE.Box3(min, max)
         };
     }
     );
@@ -53,7 +58,7 @@ export function getProbeBoxes() {
 
 function init(onMsg) {
     scene = new THREE.Scene();
-    
+
     scene.add(CubeCamera);
 
     camera = new THREE.PerspectiveCamera(
@@ -204,14 +209,14 @@ function theLoader(remoteSrc, path, onMsg) {
     fetch(remoteSrc)
         .then((res) => res.json())
         .then(async (data) => {
-            // const models = data.models;
-            const models = [
-                ...data.models.slice(47, 48),
+            const models = data.models;
+            // const models = [
+            //     ...data.models.slice(47, 48),
 
-                ...data.models.slice(5,8),
-                ...data.models.slice(15,18),
-                ...data.models.slice(33,40),
-            ]
+            //     ...data.models.slice(5, 8),
+            //     ...data.models.slice(15, 18),
+            //     ...data.models.slice(33, 40),
+            // ]
 
             return iter(models, (async (model, i) => {
                 const { glb } = model

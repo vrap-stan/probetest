@@ -19,8 +19,10 @@ const boxProjectDefinitions = /*glsl */`
         rbminmax.y = ( nDir.y > 0. ) ? rbmax.y : rbmin.y;
         rbminmax.z = ( nDir.z > 0. ) ? rbmax.z : rbmin.z;
 
+        // 월드좌표의 반사벡터가 박스에서 얼마만한 강도로 반사될 지 정해주는 계수
         float correction = min( min( rbminmax.x, rbminmax.y ), rbminmax.z );
         vec3 boxIntersection = vWorldPosition + nDir * correction;
+        // vec3 boxIntersection = vWorldPosition + nDir;
         
         vec3 retval = boxIntersection - cubePos;
         // retval.x = -retval.x;
@@ -134,7 +136,7 @@ void main()
         // #define DST 1
         // samplerCube envMap = uProbe[DST].cubeTexture;
         // vec3 _envMapPosition = uProbe[DST].center;
-        // vec3 _envMapSize = uProbe[DST].size;
+        // vec3 probeSize = uProbe[DST].size;
         // mat3 _envMapRotation = mat3(1.0);
 
 
@@ -153,17 +155,57 @@ void main()
         //     gl_FragColor.rgb = iblIrradiance;
         // }
 
+        float weights[PROBE_COUNT];
+        float wTotal = 0.0;
+
+        
+        vec3 worldReflectVec = reflect( - geometryViewDir, geometryNormal );
+
+        worldReflectVec = normalize( mix( worldReflectVec, geometryNormal, roughness * roughness) );
+
+        worldReflectVec = inverseTransformDirection( worldReflectVec, viewMatrix );
+
+        float reflectWeight = 3.0;
+        float distWeight = 0.00001;
+        // float distWeight = 1.0;
+
         float dists[PROBE_COUNT];
         float distTotal = 0.0;
+        for (int i = 0; i < PROBE_COUNT; i++) {
+            vec3 probeCenter = uProbe[i].center;
+            dists[i] = dot(vWorldPosition-probeCenter, vWorldPosition-probeCenter);
+            distTotal += dists[i];
+        }
+        for (int i = 0; i < PROBE_COUNT; i++) {
+            dists[i] /= distTotal;
+        }
+        
+        // TODO : Dist가 아니고 상자로부터의 dist를 구해야겠다 또는 상자사이즈의 2/3
+
 
         for (int i = 0; i < PROBE_COUNT; i++) {
         
             // pick closest uProbe
             vec3 probeCenter = uProbe[i].center;
-            vec3 probeSize = uProbe[i].size;
-            float dist = distance(probeCenter.xz, vWorldPosition.xz);
-            dists[i] = 1.0 / (dist * dist * dist);
-            distTotal += dists[i];
+            
+            float reflectFactor = dot(normalize(worldReflectVec), normalize(probeCenter));
+
+            // reflectFactor = abs(clamp(reflectFactor, -1.0, 1.0));
+            reflectFactor = clamp(reflectFactor, 0.0, 1.0);
+
+            
+
+            // 웨이트를 더 주기위해
+            // float a = -.1;
+            // float p = reflectFactor-1.;
+            // reflectFactor = a*p*p + 1.0;
+            // reflectFactor = reflectFactor*reflectFactor;
+
+            float distFactor = 1.0 - dists[i];
+            weights[i] = reflectWeight * reflectFactor;
+            // weights[i] = distWeight * distFactor;
+            wTotal += weights[i];
+
         }
 
         
@@ -171,72 +213,75 @@ void main()
 
         vec4 envMapColor = vec4(0.0);
 
+
+
+
         #pragma unroll_loop_start
         for (int i = 0; i < PROBE_COUNT; i++) {
-            vec3 _envMapPosition = uProbe[i].center;
-            vec3 _envMapSize = uProbe[i].size;
+            vec3 probeCenter = uProbe[i].center;
+            vec3 probeSize = uProbe[i].size;
 
-            vec3 reflectVec = reflect( - geometryViewDir, geometryNormal );
+            vec3 localReflectVec = parallaxCorrectNormal( worldReflectVec, probeSize, probeCenter );
 
-            reflectVec = normalize( mix( reflectVec, geometryNormal, roughness * roughness) );
+            float thisWeight = weights[i] / wTotal;
 
-            reflectVec = inverseTransformDirection( reflectVec, viewMatrix );
+            if (false) {
+                //reflectFactor : 프로브 반대방향으로 반사하면 색을 0
+                vec3 viewDir = normalize(cameraPosition - vWorldPosition);
 
-            reflectVec = parallaxCorrectNormal( reflectVec, _envMapSize, _envMapPosition );
+                vec3 reflectVec_ = reflect( - geometryViewDir, geometryNormal );
+                reflectVec_ = normalize( mix( reflectVec_, geometryNormal, roughness * roughness) );
+                reflectVec_ = inverseTransformDirection( reflectVec_, viewMatrix );
 
-            float thisWeight = dists[i] / distTotal;
+                float reflectFactor = dot(normalize(reflectVec_), normalize(probeCenter - vWorldPosition));
 
-            //reflectFactor : 프로브 반대방향으로 반사하면 색을 0
-            vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+                reflectFactor = clamp(reflectFactor, 0.0, 1.0);
 
-            vec3 reflectVec_ = reflect( - geometryViewDir, geometryNormal );
+                float a = -.1;
+                float p = reflectFactor-1.;
+                reflectFactor = a*p*p + 1.0; 
 
-            // float reflectFactor = dot(reflectVec, (_envMapPosition - vWorldPosition));
-
-            // reflectFactor = clamp(reflectFactor, 0.0, 1.0);
-
-            // reflectFactor = reflectFactor * reflectFactor * (3.0 - 2.0 * reflectFactor);
-
-            // thisWeight *= reflectFactor;
-            //!reflectFactor
+                thisWeight *= reflectFactor;
+                //!reflectFactor
+            }
 
             if(i == 0){
 
-                envMapColor += thisWeight * textureCube( uProbeTextures[0], _envMapRotation * reflectVec, roughness );
+                envMapColor += thisWeight * textureCube( uProbeTextures[0], _envMapRotation * localReflectVec, roughness );
 
             }
             #if PROBE_COUNT > 1
             else if( i == 1){
 
-                envMapColor += thisWeight * textureCube( uProbeTextures[1], _envMapRotation * reflectVec, roughness );
+                envMapColor += thisWeight * textureCube( uProbeTextures[1], _envMapRotation * localReflectVec, roughness );
 
             }
             #endif
             #if PROBE_COUNT > 2
             else if( i == 2){
 
-                envMapColor += thisWeight * textureCube( uProbeTextures[2], _envMapRotation * reflectVec, roughness );
+                envMapColor += thisWeight * textureCube( uProbeTextures[2], _envMapRotation * localReflectVec, roughness );
 
             }
             #endif
             #if PROBE_COUNT > 3
             else if( i == 3){
 
-                envMapColor += thisWeight * textureCube( uProbeTextures[3], _envMapRotation * reflectVec, roughness );
+                envMapColor += thisWeight * textureCube( uProbeTextures[3], _envMapRotation * localReflectVec, roughness );
 
             }
             #endif
             #if PROBE_COUNT > 4
             else if( i == 4){
 
-                envMapColor += thisWeight * textureCube( uProbeTextures[4], _envMapRotation * reflectVec, roughness );
+                envMapColor += thisWeight * textureCube( uProbeTextures[4], _envMapRotation * localReflectVec, roughness );
 
             }
             #endif
             #if PROBE_COUNT > 5
             else if( i == 5){
 
-                envMapColor += thisWeight * textureCube( uProbeTextures[5], _envMapRotation * reflectVec, roughness );
+                envMapColor += thisWeight * textureCube( uProbeTextures[5], _envMapRotation * localReflectVec, roughness );
 
             }
             #endif

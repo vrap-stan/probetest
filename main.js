@@ -109,8 +109,8 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
     const names = [
         "거실base_9",
         "바닥",
-        "주방DP_냉장고수납장_1",
-        "주방DP_식탁_1",
+        // "주방DP_냉장고수납장_1",
+        // "주방DP_식탁_1",
         "거실base_1"
     ]
 
@@ -148,7 +148,7 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
     }
 
     const cubeCapture = (center/**THREE.Vector3 */) => {
-        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(128, {
+        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
             format: THREE.RGBFormat,
             generateMipmaps: true,
             minFilter: THREE.LinearMipmapLinearFilter,
@@ -173,6 +173,8 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
         }
     }
 
+    const now = performance.now();
+
     // [ { name : string; box: THREE.Box3 },  ]
     const probeBoxes = getProbeBoxes();
     const probeMeta = probeBoxes.map(probe => {
@@ -181,10 +183,24 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
             size: probe.box.getSize(new THREE.Vector3())
         }
     })
-    
+
     const textures = probeBoxes.map(probe => {
         return cubeCapture(probe.box.getCenter(new THREE.Vector3())).cubeTexture
     });
+
+    const elapsed = performance.now() - now;
+
+    console.log("elapsed", elapsed);
+
+    probeMeta.forEach((prove, i) => {
+        const colorFromI = new THREE.Color().setHSL(i / probeMeta.length, 1.0, 0.5);
+        const sphere = new THREE.Mesh(
+            new THREE.SphereGeometry(0.05),
+            new THREE.MeshBasicMaterial({ color: colorFromI })
+        );
+        sphere.position.copy(prove.center);
+        scene.add(sphere);
+    })
 
     const uniforms = {
         uProbe: {
@@ -204,24 +220,34 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
     // debugger;
 
 
-    meshes.forEach(mesh => {
-        const mat = mesh.material;
+    scene.traverse(mesh => {
+        // meshes.forEach(mesh=>{
+        if (mesh.isMesh) {
+            const mat = mesh.material;
 
-        mat.defines = {
-            ...(mat.defines ?? {}),
-            ...defines
+            if (typeof mat.roughness !== "undefined") {
+                mat.defines = {
+                    ...(mat.defines ?? {}),
+                    ...defines
+                }
+
+                mat.metalness = 1.0;
+                mat.roughness = 0.0;
+
+                mat.onBeforeCompile = shader => useBoxProjectedEnvMap(shader, {
+                    uniforms,
+                });
+
+                // mat.envMap = livingTex.cubeTexture;
+                // mat.envMap = cubeTexture;
+
+
+                mat.needsUpdate = true;
+            }
+
+
         }
 
-        mat.onBeforeCompile = shader => useBoxProjectedEnvMap(shader, {
-            uniforms,
-        });
-
-        // mat.envMap = livingTex.cubeTexture;
-        // mat.envMap = cubeTexture;
-        mat.metalness = 1.0;
-        mat.roughness = 0.0;
-
-        mat.needsUpdate = true;
     })
 
 

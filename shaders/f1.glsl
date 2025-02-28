@@ -75,9 +75,18 @@ float luminance( const in vec3 rgb ) {
     uniform vec3 envMapPosition;
     varying vec3 vWorldPosition;
     vec3 parallaxCorrectNormal( vec3 v, vec3 cubeSize, vec3 cubePos ) {
+        // v = world좌표계의 reflection vector
         vec3 nDir = normalize( v );
+
+        // 로컬로 가져온 상자 max 위치
+        // .5 * cubeSize + cubePos - vWorldPosition
         vec3 rbmax = ( .5 * cubeSize + cubePos - vWorldPosition ) / nDir;
         vec3 rbmin = ( -.5 * cubeSize + cubePos - vWorldPosition ) / nDir;
+        // * / nDir을 하는 이유 : 꼭지점까지 nDir이 몇 번 가야되는지 계산하는 것
+        // 즉 rbmax는 최대꼭지점까지 nDir의 각 성분이 가야하는 횟수
+        // rbmin은 최소꼭지점까지 nDir의 각 성분이 가야하는 횟수
+        
+        // 반사벡터의 방향에 따라 가장 가까운 꼭지점 찾기
         vec3 rbminmax;
         rbminmax.x = ( nDir.x > 0. ) ? rbmax.x : rbmin.x;
         rbminmax.y = ( nDir.y > 0. ) ? rbmax.y : rbmin.y;
