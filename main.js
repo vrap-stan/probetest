@@ -1,11 +1,5 @@
 import * as THREE from "three";
-import Utils from "utils"
-import Loader, { getProbeBoxes } from "loader"
-import useBoxProjectedEnvMap from "BoxProjection"
-import cubeCamera from "CubeCamera";
-import PmremGenerator from "PmremGenerator";
-
-const {
+import {
     base,
     src1k,
     src512,
@@ -13,7 +7,11 @@ const {
     src512png,
     src1024png,
     withoutExtension,
-} = Utils
+} from "utils"
+import Loader, { getProbeBoxes } from "loader"
+import useBoxProjectedEnvMap from "BoxProjection"
+import cubeCamera from "CubeCamera";
+import PmremGenerator from "PmremGenerator";
 
 const {
     scene, camera, renderer, controls,
@@ -23,6 +21,8 @@ const {
     init
 } = Loader;
 
+let onBeforeCompileFunc, defines;
+const shaders = [];
 
 // const base = "https://d1ru9emggadhd3.cloudfront.net/models/lmedit/";
 
@@ -78,11 +78,14 @@ function onPointerMove(event) {
 function onPointerClick(event) {
     raycaster.setFromCamera(pointer, camera);
 
-    const intersects = raycaster.intersectObjects(scene.children, true);
+    const intersects = raycaster.intersectObjects(scene.children, true).filter(i => {
+        return !["Box3Helper"].includes(i.object.type)
+    })
 
     if (intersects.length > 0) {
         // console.log(intersects[0]);
-        console.log(intersects[0].point, intersects[0],);
+        // console.log(intersects[0].point, intersects[0],);
+        console.log(intersects[0].point.x, intersects[0].point.z, intersects[0]?.object?.name);
     }
 }
 
@@ -103,6 +106,166 @@ document.getElementById("exposure").addEventListener("input", (e) => {
         }
     });
 });
+
+document.getElementById("metalness").addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    scene.traverse((o) => {
+        if (o.isMesh) {
+            const mat = o.material;
+            if (mat) {
+                mat.metalness = val;
+            }
+        }
+    });
+});
+
+// roughness
+document.getElementById("roughness").addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    scene.traverse((o) => {
+        if (o.isMesh) {
+            const mat = o.material;
+            if (mat) {
+                mat.roughness = val;
+            }
+        }
+    });
+});
+
+//probeIntensity
+document.getElementById("probeIntensity").addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+
+    shaders.forEach(shader => {
+        shader.uniforms.uProbeIntensity.value = val;
+    })
+
+    // function obc(shader) {
+    //     onBeforeCompileFunc(shader);
+    //     shader.uniforms = {
+    //         ...shader.uniforms,
+    //         uProbeIntensity: {
+    //             value: val
+    //         }
+    //     }
+    //     console.log(shader.uniforms.uProbeIntensity);
+    // };;
+
+    // scene.traverse((o) => {
+    //     if (o.isMesh) {
+    //         const mat = o.material;
+    //         if (mat) {
+    //             // uniform
+    //             mat.onBeforeCompile = obc
+    //             mat.needsUpdate = true;
+    //         }
+    //     }
+    // });
+});
+
+function initOnBeforeCompile() {
+    if (onBeforeCompileFunc) {
+        return;
+    }
+
+    const cubeCapture = (center/**THREE.Vector3 */) => {
+
+        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
+            format: THREE.RGBFormat,
+            generateMipmaps: true,
+            minFilter: THREE.LinearMipmapLinearFilter,
+            magFilter: THREE.LinearFilter,
+        });
+        const cubeCamera = new THREE.CubeCamera(0.1, 10, cubeRenderTarget);
+
+        cubeCamera.position.copy(center);
+        cubeCamera.update(renderer, scene);
+        const cubeTexture = cubeCamera.renderTarget.textures[0];
+
+        // const generator = new THREE.PMREMGenerator(renderer);
+        // generator.compileCubemapShader();
+        // // generator.compileEquirectangularShader();
+
+        // const envMap = generator.fromCubemap(cubeTexture).texture;
+
+        // console.log(envMap);
+
+        return {
+            cubeTexture,
+            // cubeTexture: envMap,
+            // envTexture: envMap
+        }
+    }
+
+    const now = performance.now();
+
+    // [ { name : string; box: THREE.Box3 },  ]
+    const probeBoxes = getProbeBoxes();
+    const probeMeta = probeBoxes.map(probe => {
+        return {
+            center: probe.box.getCenter(new THREE.Vector3()),
+            size: probe.box.getSize(new THREE.Vector3())
+        }
+    })
+
+    const textures = probeBoxes.map(probe => {
+        return cubeCapture(probe.box.getCenter(new THREE.Vector3())).cubeTexture
+    });
+
+    const elapsed = performance.now() - now;
+
+    console.log("elapsed", elapsed);
+
+    // 프로브 구/박스 보여주기
+    if (false) {
+        probeMeta.forEach((prove, i) => {
+
+            const colorFromI = new THREE.Color().setHSL(i / probeMeta.length, 1.0, 0.5);
+
+            // 구
+            const sphere = new THREE.Mesh(
+                new THREE.SphereGeometry(0.05),
+                new THREE.MeshBasicMaterial({ color: colorFromI })
+            );
+            sphere.position.copy(prove.center);
+            scene.add(sphere);
+
+            // 박스
+            const box = new THREE.Box3();
+            box.setFromCenterAndSize(prove.center, prove.size);
+            const boxHelper = new THREE.Box3Helper(box, colorFromI);
+            scene.add(boxHelper);
+
+
+        })
+
+    }
+
+    const uniforms = {
+        uProbe: {
+            value: probeMeta
+        },
+        uProbeTextures: {
+            value: textures
+        },
+        uProbeIntensity: {
+            value: 1.0
+        }
+    }
+
+    defines = {
+        PROBE_COUNT: probeBoxes.length
+    }
+
+    onBeforeCompileFunc = shader => {
+        useBoxProjectedEnvMap(shader, {
+            uniforms,
+            defines
+        });
+        shaders.push(shader);
+    }
+}
+
 
 document.getElementById("btnApplyMirror").addEventListener("click", () => {
 
@@ -147,77 +310,13 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
         }
     }
 
-    const cubeCapture = (center/**THREE.Vector3 */) => {
-        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
-            format: THREE.RGBFormat,
-            generateMipmaps: true,
-            minFilter: THREE.LinearMipmapLinearFilter,
-            magFilter: THREE.LinearFilter,
-        });
-        const cubeCamera = new THREE.CubeCamera(0.1, 10, cubeRenderTarget);
-        cubeCamera.position.copy(center);
-        cubeCamera.update(renderer, scene);
-        const cubeTexture = cubeCamera.renderTarget.textures[0];
 
-        // const generator = new THREE.PMREMGenerator(renderer);
-        // generator.compileCubemapShader();
-        // generator.compileEquirectangularShader();
-        // debugger;
-        // const generator = PmremGenerator(renderer);
-
-        // const envMap = generator.fromCubemap(cubeTexture).texture;
-
-        return {
-            cubeTexture,
-            // envTexture: envMap
-        }
-    }
-
-    const now = performance.now();
-
-    // [ { name : string; box: THREE.Box3 },  ]
-    const probeBoxes = getProbeBoxes();
-    const probeMeta = probeBoxes.map(probe => {
-        return {
-            center: probe.box.getCenter(new THREE.Vector3()),
-            size: probe.box.getSize(new THREE.Vector3())
-        }
-    })
-
-    const textures = probeBoxes.map(probe => {
-        return cubeCapture(probe.box.getCenter(new THREE.Vector3())).cubeTexture
-    });
-
-    const elapsed = performance.now() - now;
-
-    console.log("elapsed", elapsed);
-
-    probeMeta.forEach((prove, i) => {
-        const colorFromI = new THREE.Color().setHSL(i / probeMeta.length, 1.0, 0.5);
-        const sphere = new THREE.Mesh(
-            new THREE.SphereGeometry(0.05),
-            new THREE.MeshBasicMaterial({ color: colorFromI })
-        );
-        sphere.position.copy(prove.center);
-        scene.add(sphere);
-    })
-
-    const uniforms = {
-        uProbe: {
-            value: probeMeta
-        },
-        uProbeTextures: {
-            value: textures
-        }
-    }
-
-    const defines = {
-        PROBE_COUNT: probeBoxes.length
-    }
 
     // debugger;
 
     // debugger;
+    initOnBeforeCompile();
+
 
 
     scene.traverse(mesh => {
@@ -225,18 +324,17 @@ document.getElementById("btnApplyMirror").addEventListener("click", () => {
         if (mesh.isMesh) {
             const mat = mesh.material;
 
+
             if (typeof mat.roughness !== "undefined") {
                 mat.defines = {
                     ...(mat.defines ?? {}),
                     ...defines
                 }
 
-                mat.metalness = 1.0;
-                mat.roughness = 0.0;
+                // mat.metalness = 1.0;
+                // mat.roughness = 0.0;
 
-                mat.onBeforeCompile = shader => useBoxProjectedEnvMap(shader, {
-                    uniforms,
-                });
+                mat.onBeforeCompile = onBeforeCompileFunc;
 
                 // mat.envMap = livingTex.cubeTexture;
                 // mat.envMap = cubeTexture;
@@ -262,6 +360,23 @@ window.addEventListener("resize", () => {
 window.addEventListener('pointermove', onPointerMove);
 window.addEventListener('click', onPointerClick);
 
+btnTest1.onclick = () => {
+    const helpers = [];
+    scene.traverse(mesh => {
+        if (mesh.isMesh) {
+            const box = new THREE.Box3();
+            box.setFromObject(mesh);
+            const boxHelper = new THREE.Box3Helper(box);
+            // scene.add(boxHelper);
+            helpers.push(boxHelper);
+        }
+    });
+
+    console.log("Helpers : ", helpers.length)
+    helpers.forEach(helper => {
+        scene.add(helper)
+    })
+}
 
 
 animate();

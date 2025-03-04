@@ -29,6 +29,15 @@ const boxProjectDefinitions = /*glsl */`
 
         return retval;
     }
+
+    float distanceToAABB(vec3 point, vec3 boxCenter, vec3 boxSize) {
+        vec3 boxMin = boxCenter - boxSize * 0.5;
+        vec3 boxMax = boxCenter + boxSize * 0.5;
+        
+        vec3 closestPoint = clamp(point, boxMin, boxMax);
+        return length(point - closestPoint);
+    }
+
 #endif
 `;
 
@@ -51,7 +60,11 @@ export default function useBoxProjectedEnvMap(shader, args) {
     const { uniforms, defines } = args;
 
     // defines
-    shader.defines.V_ENV_MAP = true;
+    shader.defines = {
+        ...shader.defines,
+        ...defines,
+        V_ENV_MAP: 1
+    }
 
     // uniforms
     // shader.uniforms.envMapPosition = {
@@ -113,6 +126,7 @@ export default function useBoxProjectedEnvMap(shader, args) {
             `
         );
 
+        const fragRepl = "#include <lights_fragment_end>"
 
     shader.fragmentShader = shader.fragmentShader.replace("void main()",
         `
@@ -123,66 +137,85 @@ export default function useBoxProjectedEnvMap(shader, args) {
             // sampler2D envTexture;
         };
         uniform Probe uProbe[PROBE_COUNT];
+        // uniform samplerCube uProbeTextures[PROBE_COUNT];
         uniform samplerCube uProbeTextures[PROBE_COUNT];
+        uniform float uProbeIntensity;
         // uniform sampler2D myenv1;
         // uniform sampler2D myenv2;
+
+        vec2 equirectUV(vec3 dir) {
+            vec2 uv;
+            uv.x = atan(-dir.z, dir.x) / (2.0 * 3.14159265359) + 0.5;
+            uv.y = acos(dir.y) / 3.14159265359;
+            return uv;
+        }
+
+
 void main()
         `
-    ).replace("#include <dithering_fragment>",
-        /** glsl */`#include <dithering_fragment>
-
-        #ifdef V_ENV_MAP
+    ).replace(fragRepl,
+        /** glsl */`
+    #ifdef V_ENV_MAP
         
-        // #define DST 1
-        // samplerCube envMap = uProbe[DST].cubeTexture;
-        // vec3 _envMapPosition = uProbe[DST].center;
-        // vec3 probeSize = uProbe[DST].size;
-        // mat3 _envMapRotation = mat3(1.0);
-
-
         float roughness = material.roughness;
         
-        // iblIrradiance
-        // if ( false ) {
-        //     vec3 worldNormal = inverseTransformDirection( geometryNormal, viewMatrix );
-
-        //     worldNormal = parallaxCorrectNormal( worldNormal, envMapSize, envMapPosition );
-            
-        //     vec4 envMapColor = textureCubeUV( envMap, envMapRotation * worldNormal, 1.0 );
-            
-        //     vec3 iblIrradiance = PI * envMapColor.rgb * envMapIntensity;
-
-        //     gl_FragColor.rgb = iblIrradiance;
-        // }
-
         float weights[PROBE_COUNT];
         float wTotal = 0.0;
 
         
         vec3 worldReflectVec = reflect( - geometryViewDir, geometryNormal );
 
-        worldReflectVec = normalize( mix( worldReflectVec, geometryNormal, roughness * roughness) );
+        // worldReflectVec = normalize( mix( worldReflectVec, geometryNormal, roughness * roughness) );
+        worldReflectVec = normalize(worldReflectVec);
 
         worldReflectVec = inverseTransformDirection( worldReflectVec, viewMatrix );
 
-        float reflectWeight = 3.0;
-        float distWeight = 0.00001;
-        // float distWeight = 1.0;
+        float reflectWeight = 1.0;
+        // float distWeight = 0.00001;
+        float distWeight = 1.0;
 
         float dists[PROBE_COUNT];
         float distTotal = 0.0;
+
+        // 거리를 계산
         for (int i = 0; i < PROBE_COUNT; i++) {
             vec3 probeCenter = uProbe[i].center;
-            dists[i] = dot(vWorldPosition-probeCenter, vWorldPosition-probeCenter);
+            vec3 probeSize = uProbe[i].size;
+
+            float distFromCenter = dot(vWorldPosition-probeCenter, vWorldPosition-probeCenter);
+            float distFromBox = distanceToAABB(vWorldPosition, probeCenter, probeSize);
+            
+            // dists[i] = distFromCenter + distFromBox;
+            dists[i] = distFromBox;
+            // dists[i] = distFromCenter * distFromCenter;
+            
             distTotal += dists[i];
         }
         for (int i = 0; i < PROBE_COUNT; i++) {
             dists[i] /= distTotal;
         }
+
+        int minIndex = -1;
+
+        if ( true ) {
+            // 가장 가까운 것만 고르기
+            float minDist = 100000.0;
+            for (int i = 0; i < PROBE_COUNT; i++) {
+                if (dists[i] < minDist) {
+                    minDist = dists[i];
+                    minIndex = i;
+                }
+            }
+            for (int i = 0; i < PROBE_COUNT; i++) {
+                if (i == minIndex) {
+                    dists[i] = 1.0;
+                    distTotal = 1.0;
+                } else {
+                    dists[i] = 0.0;
+                }
+            }
+        }
         
-        // TODO : Dist가 아니고 상자로부터의 dist를 구해야겠다 또는 상자사이즈의 2/3
-
-
         for (int i = 0; i < PROBE_COUNT; i++) {
         
             // pick closest uProbe
@@ -191,7 +224,9 @@ void main()
             float reflectFactor = dot(normalize(worldReflectVec), normalize(probeCenter));
 
             // reflectFactor = abs(clamp(reflectFactor, -1.0, 1.0));
-            reflectFactor = clamp(reflectFactor, 0.0, 1.0);
+            // reflectFactor = clamp(reflectFactor, 0.0, 1.0);
+            reflectFactor = (clamp(reflectFactor, -0.5, 1.0));
+            reflectFactor = reflectFactor*reflectFactor;
 
             
 
@@ -202,7 +237,18 @@ void main()
             // reflectFactor = reflectFactor*reflectFactor;
 
             float distFactor = 1.0 - dists[i];
-            weights[i] = reflectWeight * reflectFactor;
+
+            if(vWorldPosition.y < 0.1 && false) {
+                weights[i] = reflectWeight * reflectFactor;
+            } else {
+                // weights[i] = distWeight * distFactor;
+                // weights[i] = distWeight;
+                if(i == minIndex) {
+                    weights[i] = 1.0;
+                }
+            }
+
+            // weights[i] = reflectWeight * reflectFactor;
             // weights[i] = distWeight * distFactor;
             wTotal += weights[i];
 
@@ -285,6 +331,84 @@ void main()
 
             }
             #endif
+            #if PROBE_COUNT > 6
+            else if( i == 6){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[6], _envMapRotation * localReflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 7
+            else if( i == 7){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[7], _envMapRotation * localReflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 8
+            else if( i == 8){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[8], _envMapRotation * localReflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 9
+            else if( i == 9){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[9], _envMapRotation * localReflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 10
+            else if( i == 10){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[10], _envMapRotation * localReflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 11
+            else if( i == 11){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[11], _envMapRotation * localReflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 12
+            else if( i == 12){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[12], _envMapRotation * localReflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 13
+            else if( i == 13){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[13], _envMapRotation * localReflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 14
+            else if( i == 14){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[14], _envMapRotation * localReflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 15
+            else if( i == 15){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[15], _envMapRotation * localReflectVec, roughness );
+
+            }
+            #endif
+            #if PROBE_COUNT > 16
+            else if( i == 16){
+
+                envMapColor += thisWeight * textureCube( uProbeTextures[16], _envMapRotation * localReflectVec, roughness );
+
+            }
+            #endif
+            // WebGL GLSL스펙 상 최대 텍스쳐 갯수는 16이므로 여기서 끝
             else {
 
                 envMapColor = vec4(0.0);
@@ -292,26 +416,28 @@ void main()
         }
         #pragma unroll_loop_end
 
-        float envMapIntensity = 1.0;
-        gl_FragColor.rgb = envMapColor.rgb * envMapIntensity;
+        // float envMapIntensity = 1.0;
+        // gl_FragColor.rgb = envMapColor.rgb * envMapIntensity;
+
+        radiance += clamp(envMapColor.rgb, 0.0, 1.0) * uProbeIntensity;
 
         #endif
-        
+        ` + fragRepl
+    )
 
-
-        `)
+    // debugger;
 
     const downloadShader = () => {
         // download vertex & frament shader using a tag
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(new Blob([shader.vertexShader], { type: "text/plain" }));
-        a.download = "vertex.glsl";
-        a.click();
+        // const a = document.createElement("a");
+        // a.href = URL.createObjectURL(new Blob([shader.vertexShader], { type: "text/plain" }));
+        // a.download = "vertex.glsl";
+        // a.click();
 
         const b = document.createElement("a");
         b.href = URL.createObjectURL(new Blob([shader.fragmentShader], { type: "text/plain" }));
         b.download = "fragment.glsl";
         b.click();
     }
-
+    // downloadShader()
 }

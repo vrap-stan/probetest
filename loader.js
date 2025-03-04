@@ -5,9 +5,8 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 
-import u from "utils"
+import { base, withoutExtension, iter } from "utils"
 import CubeCamera from "CubeCamera";
-const { base, withoutExtension, iter } = u;
 
 let scene, camera, renderer, controls;
 let gltfLoader, ktx;
@@ -18,26 +17,78 @@ const textureLoader = new THREE.TextureLoader();
 const boxY = 2.38;
 
 const coords = [
-    {
-        name: "kitchen",
-        min: new THREE.Vector3(-2.7, 0, -4.0),
-        max: new THREE.Vector3(1.13, 0, -0.1),
-    },
-    {
-        name: "livingRoom",
-        min: new THREE.Vector3(-3.5, 0, -0.1),
-        max: new THREE.Vector3(1.12, 0, 4.4),
-    },
     // {
-    //     name: "masterMirror",
-    //     min: new THREE.Vector3(-8.1, 0, 0.0),
-    //     max: new THREE.Vector3(-4.35, 0, 1.18),
+    //     name: "kitchen",
+    //     min: new THREE.Vector3(-2.7, 0, -4.0),
+    //     max: new THREE.Vector3(1.13, 0, -0.1),
     // },
     // {
-    //     name: "corridor",
-    //     min: new THREE.Vector3(1.03, 0, 0.0),
-    //     max: new THREE.Vector3(8.5, 0, 1.03),
-    // }
+    //     name: "livingRoom",
+    //     min: new THREE.Vector3(-3.5, 0, -0.1),
+    //     max: new THREE.Vector3(1.12, 0, 4.4),
+    // },
+    {
+        name: "kitchen&livingroom",
+        min: new THREE.Vector3(-3.5, 0, -4.0),
+        max: new THREE.Vector3(1.12, 0, 4.4),
+    },
+    
+    {
+        name: "master",
+        min: new THREE.Vector3(-8.1, 0, 2),
+        max: new THREE.Vector3(-4.17, 0, 4.71),
+    },
+    {
+        name: "masterMirror",
+        min: new THREE.Vector3(-8.1, 0, 0.0),
+        max: new THREE.Vector3(-4.35, 0, 1.18),
+    },
+    {
+        name: "corridor",
+        min: new THREE.Vector3(1.03, 0, 0.0),
+        max: new THREE.Vector3(8.5, 0, 1.03),
+    },
+
+    {
+        name: "alpha",
+        min: new THREE.Vector3(1.36, 0, 1.25),
+        max: new THREE.Vector3(3.36, 0, 4.7),
+    },
+    {
+        name: "room1",
+        min: new THREE.Vector3(3.7, 0, 1.25),
+        max: new THREE.Vector3(6.3, 0, 4.7),
+    },
+    {
+        name: "room2",
+        min: new THREE.Vector3(6.5, 0, 1.25),
+        max: new THREE.Vector3(9.4, 0, 4.7),
+    },
+    {
+        name: "entrance",
+        min: new THREE.Vector3(7.45, 0, -2.41),
+        max: new THREE.Vector3(8.51, 0, -0.17),
+    },
+    {
+        name: "toilet1",
+        min: new THREE.Vector3(3.19, 0, -1.80),
+        max: new THREE.Vector3(5.25, 0, -0.31),
+    },
+    // {
+    //     name: "toilet2-1",
+    //     min: new THREE.Vector3(-5.29, 0, -1.78),
+    //     max: new THREE.Vector3(-3.90, 0, -0.49),
+    // },
+    // {
+    //     name: "toilet2-2",
+    //     min: new THREE.Vector3(-5.32, 0, -2.68),
+    //     max: new THREE.Vector3(-4.27, 0, -1.86),
+    // },
+    // {
+    //     name: "masterdress",
+    //     min: new THREE.Vector3(-9.37, 0, -2.78),
+    //     max: new THREE.Vector3(-5.60, 0, -0.38),
+    // },
 ];
 
 export function getProbeBoxes() {
@@ -60,6 +111,9 @@ function init(onMsg) {
     scene = new THREE.Scene();
 
     scene.add(CubeCamera);
+
+    // const gridHelper = new THREE.GridHelper(20, 20);
+    // scene.add(gridHelper);
 
     camera = new THREE.PerspectiveCamera(
         75,
@@ -218,11 +272,14 @@ function theLoader(remoteSrc, path, onMsg) {
             //     ...data.models.slice(33, 40),
             // ]
 
-            return iter(models, (async (model, i) => {
+            const filtered = models.slice(1);
+            // const filtered = models;
+
+            return iter(filtered, (async (model, i) => {
                 const { glb } = model
 
                 onMsg?.(
-                    `Loading [${i + 1}/${models.length}] ${withoutExtension(glb)}`
+                    `Loading [${i + 1}/${filtered.length}] ${withoutExtension(glb)}`
                 );
                 return loadModel(model, path);
             }), !false)

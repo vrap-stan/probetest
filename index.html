@@ -46,6 +46,7 @@
         <button id="load512png">Load 512 png</button>
         <!-- <button id="load1024png">Load 1024 png</button>
         <button id="loadMerged1">Load Merged1</button> -->
+        <label>라이트맵</label>
         <input
           type="range"
           min="0.8"
@@ -53,6 +54,33 @@
           step="0.1"
           value="1.0"
           id="exposure"
+        />
+        <label>메탈니스</label>
+        <input
+          type="range"
+          min="0.0"
+          max="1.0"
+          step="0.01"
+          value="0.0"
+          id="metalness"
+        />
+        <label>러프니스</label>
+        <input
+          type="range"
+          min="0.0"
+          max="1.0"
+          step="0.01"
+          value="0.0"
+          id="roughness"
+        />
+        <label>프로브세기</label>
+        <input
+          type="range"
+          min="0.0"
+          max="1.5"
+          step="0.01"
+          value="0.0"
+          id="probeIntensity"
         />
       </div>
       <div style="background-color: white">Status : <span id="st"></span></div>
@@ -76,7 +104,10 @@
       <div id="camPosition"></div>
       <div id="matWorld"></div>
       <!-- <button onclick="console.log(camera.)">Speak</button> -->
-      <button id="btnApplyMirror">Apply Mirror</button>
+      <div style="display: flex; gap: 4px">
+        <button id="btnApplyMirror">Apply Mirror</button>
+        <button id="btnTest1">테스트1</button>
+      </div>
     </div>
 
     <script type="module" src="main.js"></script>
