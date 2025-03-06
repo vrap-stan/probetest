@@ -38,6 +38,144 @@ const boxProjectDefinitions = /*glsl */`
         return length(point - closestPoint);
     }
 
+    vec4 probeColor(int i, float roughness) {
+        vec3 worldReflectVec = reflect( - geometryViewDir, geometryNormal );
+
+        worldReflectVec = normalize(worldReflectVec);
+
+        worldReflectVec = inverseTransformDirection( worldReflectVec, viewMatrix );
+
+        vec3 localReflectVec = parallaxCorrectNormal( worldReflectVec, probeSize, probeCenter );
+
+        mat3 _envMapRotation = mat3(1.0);
+
+        vec4 envMapColor = vec4(0.0);
+
+        if(i == 0){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[0], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #if PROBE_COUNT > 1
+        else if( i == 1){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[1], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 2
+        else if( i == 2){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[2], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 3
+        else if( i == 3){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[3], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 4
+        else if( i == 4){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[4], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 5
+        else if( i == 5){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[5], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 6
+        else if( i == 6){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[6], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 7
+        else if( i == 7){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[7], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 8
+        else if( i == 8){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[8], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 9
+        else if( i == 9){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[9], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 10
+        else if( i == 10){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[10], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 11
+        else if( i == 11){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[11], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 12
+        else if( i == 12){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[12], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 13
+        else if( i == 13){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[13], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 14
+        else if( i == 14){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[14], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 15
+        else if( i == 15){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[15], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        #if PROBE_COUNT > 16
+        else if( i == 16){
+
+            envMapColor += thisWeight * textureCube( uProbeTextures[16], _envMapRotation * localReflectVec, roughness );
+
+        }
+        #endif
+        // WebGL GLSL스펙 상 최대 텍스쳐 갯수는 16이므로 여기서 끝
+        else {
+
+            envMapColor = vec4(0.0);
+        }
+        return envMapColor;
+    }
+
 #endif
 `;
 
@@ -108,7 +246,7 @@ export default function useBoxProjectedEnvMap(shader, args) {
         );
 
     // fragment shader
-    shader.fragmentShader = boxProjectDefinitions + "\n" + shader.fragmentShader
+    shader.fragmentShader = shader.fragmentShader
         .replace(
             "#include <envmap_physical_pars_fragment>",
             THREE.ShaderChunk.envmap_physical_pars_fragment
@@ -132,8 +270,6 @@ export default function useBoxProjectedEnvMap(shader, args) {
             `
         );
 
-    const fragRepl = "#include <lights_fragment_end>"
-
     shader.fragmentShader = shader.fragmentShader.replace("void main()",
         `
         #ifdef V_ENV_MAP
@@ -155,10 +291,10 @@ export default function useBoxProjectedEnvMap(shader, args) {
         }
         #endif
 
-
+${boxProjectDefinitions}
 void main()
         `
-    ).replace(fragRepl,
+    ).replace("#include <lights_fragment_end>",
         /** glsl */`
     #ifdef V_ENV_MAP
         
@@ -180,7 +316,9 @@ void main()
         float distWeight = 1.0;
 
         float dists[PROBE_COUNT];
+        float floorDists[PROBE_COUNT];
         float distTotal = 0.0;
+        float floorDistTotal = 0.0;
 
         // 거리를 계산
         #pragma unroll_loop_start
@@ -198,6 +336,9 @@ void main()
             // dists[i] = distFromCenter * distFromCenter;
             
             distTotal += dists[i];
+
+            floorDists[i] = dists[i];
+            floorDistTotal += floorDists[i];
         }
         #pragma unroll_loop_end
 
@@ -208,6 +349,7 @@ void main()
         #pragma unroll_loop_end
 
         int minIndex = -1;
+        int secondMinIndex = -1;
 
         if ( true ) {
             // 가장 가까운 것만 고르기
@@ -216,6 +358,7 @@ void main()
             for (int i = 0; i < PROBE_COUNT; i++) {
                 if (dists[i] < minDist) {
                     minDist = dists[i];
+                    secondMinIndex = minIndex;
                     minIndex = i;
                 }
             }
@@ -233,221 +376,110 @@ void main()
             #pragma unroll_loop_end
         }
         
-        #pragma unroll_loop_start
-        for (int i = 0; i < PROBE_COUNT; i++) {
-        
-            // pick closest uProbe
-            vec3 probeCenter = uProbe[i].center;
-            
-            float reflectFactor = dot(normalize(worldReflectVec), normalize(probeCenter));
-
-            // reflectFactor = abs(clamp(reflectFactor, -1.0, 1.0));
-            // reflectFactor = clamp(reflectFactor, 0.0, 1.0);
-            reflectFactor = (clamp(reflectFactor, -0.5, 1.0));
-            reflectFactor = reflectFactor*reflectFactor;
-
-            
-
-            // 웨이트를 더 주기위해
-            // float a = -.1;
-            // float p = reflectFactor-1.;
-            // reflectFactor = a*p*p + 1.0;
-            // reflectFactor = reflectFactor*reflectFactor;
-
-            float distFactor = 1.0 - dists[i];
-
-            if(false) {
-                if(vWorldPosition.y < 0.1 && false) {
-                    weights[i] = reflectWeight * reflectFactor;
-                } else {
-                    weights[i] = distWeight * distFactor;
-                    // weights[i] = distWeight;
-                }
-            } else {
-                if(i == minIndex) {
-                    weights[i] = 1.0;
-                } else {
-                    weights[i] = 0.0;
-                }
-            }
-
-            // weights[i] = reflectWeight * reflectFactor;
-            // weights[i] = distWeight * distFactor;
-            wTotal += weights[i];
-
-        }
-        #pragma unroll_loop_end
-
-        
-        mat3 _envMapRotation = mat3(1.0);
-
         vec4 envMapColor = vec4(0.0);
 
+        // case #1. 바닥에 있는 경우
+        if(vWorldPosition.y < 0.05) {
 
+            float minDist = floorDists[minIndex];
+            float secondMinDist = floorDists[secondMinIndex];
 
+            if(secondMinDist > 0.5) {
 
-        #pragma unroll_loop_start
-        for (int i = 0; i < PROBE_COUNT; i++) {
-            vec3 probeCenter = uProbe[i].center;
-            vec3 probeSize = uProbe[i].size;
+                envMapColor = probeColor(minIndex, roughness);
 
-            vec3 localReflectVec = parallaxCorrectNormal( worldReflectVec, probeSize, probeCenter );
+            } else {
+                // 박스 간의 거리가 가까운 지점, 거리에 따라 보간
+                float total = minDist + secondMinDist + 0.00001;
+                float minFactor = minDist / total;
+                
+                vec4 closestColor = probeColor(minIndex, roughness);
+                vec4 secondClosestColor = probeColor(secondMinIndex, roughness);
 
-            float thisWeight = weights[i] / wTotal;
-
-            if (false) {
-                //reflectFactor : 프로브 반대방향으로 반사하면 색을 0
-                vec3 viewDir = normalize(cameraPosition - vWorldPosition);
-
-                vec3 reflectVec_ = reflect( - geometryViewDir, geometryNormal );
-                reflectVec_ = normalize( mix( reflectVec_, geometryNormal, roughness * roughness) );
-                reflectVec_ = inverseTransformDirection( reflectVec_, viewMatrix );
-
-                float reflectFactor = dot(normalize(reflectVec_), normalize(probeCenter - vWorldPosition));
-
-                reflectFactor = clamp(reflectFactor, 0.0, 1.0);
-
-                float a = -.1;
-                float p = reflectFactor-1.;
-                reflectFactor = a*p*p + 1.0; 
-
-                thisWeight *= reflectFactor;
-                //!reflectFactor
+                envMapColor = closestColor * minFactor + secondClosestColor * (1.0 - minFactor);
+                
             }
 
-            if(i == 0){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[0], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #if PROBE_COUNT > 1
-            else if( i == 1){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[1], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 2
-            else if( i == 2){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[2], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 3
-            else if( i == 3){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[3], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 4
-            else if( i == 4){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[4], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 5
-            else if( i == 5){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[5], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 6
-            else if( i == 6){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[6], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 7
-            else if( i == 7){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[7], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 8
-            else if( i == 8){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[8], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 9
-            else if( i == 9){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[9], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 10
-            else if( i == 10){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[10], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 11
-            else if( i == 11){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[11], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 12
-            else if( i == 12){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[12], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 13
-            else if( i == 13){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[13], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 14
-            else if( i == 14){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[14], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 15
-            else if( i == 15){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[15], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            #if PROBE_COUNT > 16
-            else if( i == 16){
-
-                envMapColor += thisWeight * textureCube( uProbeTextures[16], _envMapRotation * localReflectVec, roughness );
-
-            }
-            #endif
-            // WebGL GLSL스펙 상 최대 텍스쳐 갯수는 16이므로 여기서 끝
-            else {
-
-                envMapColor = vec4(0.0);
-            }
+        } else {
+            // case #2. 바닥이 아닌 경우
+            envMapColor = probeColor(minIndex, roughness);
         }
-        #pragma unroll_loop_end
 
-        // float envMapIntensity = 1.0;
-        // gl_FragColor.rgb = envMapColor.rgb * envMapIntensity;
+
+        // #pragma unroll_loop_start
+        // for (int i = 0; i < PROBE_COUNT; i++) {
+        
+        //     // pick closest uProbe
+        //     vec3 probeCenter = uProbe[i].center;
+            
+        //     float reflectFactor = dot(normalize(worldReflectVec), normalize(probeCenter));
+
+        //     // reflectFactor = abs(clamp(reflectFactor, -1.0, 1.0));
+        //     // reflectFactor = clamp(reflectFactor, 0.0, 1.0);
+        //     reflectFactor = (clamp(reflectFactor, -0.5, 1.0));
+        //     reflectFactor = reflectFactor*reflectFactor;
+
+            
+
+        //     // 웨이트를 더 주기위해
+        //     // float a = -.1;
+        //     // float p = reflectFactor-1.;
+        //     // reflectFactor = a*p*p + 1.0;
+        //     // reflectFactor = reflectFactor*reflectFactor;
+
+        //     float distFactor = 1.0 - dists[i];
+
+        //     if(true) {
+        //         if(vWorldPosition.y < 0.05) {
+        //             float minDist = floorDists[minIndex];
+        //             float secondMinDist = floorDists[secondMinIndex];
+
+        //             if(secondMinDist > 0.5) {
+        //                 if(i == minIndex) {
+        //                     weights[i] = 1.0;
+        //                 } else {
+        //                     weights[i] = 0.0;
+        //                 }
+        //             } else {
+        //                 // 박스 간의 거리가 가까운 지점, 거리에 따라 보간
+        //                 float total = minDist + secondMinDist + 0.00001;
+        //                 float minFactor = (total - minDist) / total;
+        //                 // float secondMinFactor = (total - secondMinDist) / total;
+        //                 weights[i] = minFactor * reflectFactor;
+        //             }
+
+        //             // weights[i] = reflectWeight * reflectFactor;
+
+
+        //         } else {
+        //             // weights[i] = distWeight * distFactor;
+        //             // // weights[i] = distWeight;
+        //             if(i == minIndex) {
+        //                 weights[i] = 1.0;
+        //             } else {
+        //                 weights[i] = 0.0;
+        //             }
+        //         }
+        //     } else {
+        //         if(i == minIndex) {
+        //             weights[i] = 1.0;
+        //         } else {
+        //             weights[i] = 0.0;
+        //         }
+        //     }
+
+        //     // weights[i] = reflectWeight * reflectFactor;
+        //     // weights[i] = distWeight * distFactor;
+        //     wTotal += weights[i];
+
+        // }
+        // #pragma unroll_loop_end
 
         radiance += clamp(envMapColor.rgb, 0.0, 1.0) * uProbeIntensity;
         // radiance = vWorldPosition;
 
         #endif
-        ` + fragRepl
+        ` + "#include <lights_fragment_end>"
     )
 
     const showVWorldPosition = false;

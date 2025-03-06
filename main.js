@@ -42,6 +42,7 @@ const probeBoxOnly = probeBoxes.map(p => {
 //      size: THREE.Vector3
 //  } ]
 let probeMeta;
+let showProbe = true;
 
 // const base = "https://d1ru9emggadhd3.cloudfront.net/models/lmedit/";
 
@@ -297,6 +298,37 @@ const createOnBeforeCompileFunc = (names, mat, mesh) => {
     }
 }
 
+const toggleProbe = ()=>{
+    if (showProbe) {
+        probeBoxes.forEach((probe, i) => {
+            const color = new THREE.Color().setHSL(i / probeBoxes.length, 1.0, 0.5);
+
+            const box = probe.box;
+            const helper = new THREE.Box3Helper(box, color);
+            helper.name = probe.name;
+
+            const sphere = new THREE.Mesh(
+                new THREE.SphereGeometry(0.05, 32, 32),
+                new THREE.MeshBasicMaterial({ color: color })
+            );
+            helper.userData.isProbe = true;
+            sphere.userData.isProbe= true;
+            sphere.position.copy(box.getCenter(new THREE.Vector3()));
+            scene.add(sphere);
+            scene.add(helper);
+        });
+    } else {
+        const toRemoves = [];
+        scene.traverse(o => {
+            if (o.userData.isProbe) {
+                toRemoves.push(o);
+            }
+        });
+        toRemoves.forEach(o => o.removeFromParent());
+    }
+    showProbe = !showProbe;
+}
+
 const createProbeMeta = () => {
     const cubeCapture = (center/**THREE.Vector3 */, name) => {
 
@@ -329,26 +361,6 @@ const createProbeMeta = () => {
     }
 
     const now = performance.now();
-
-    const showProbe = !true;
-    if (showProbe) {
-        probeBoxes.forEach((probe, i) => {
-            const color = new THREE.Color().setHSL(i / probeBoxes.length, 1.0, 0.5);
-
-            const box = probe.box;
-            const helper = new THREE.Box3Helper(box, color);
-            helper.name = probe.name;
-
-            const sphere = new THREE.Mesh(
-                new THREE.SphereGeometry(0.05, 32, 32),
-                new THREE.MeshBasicMaterial({ color: color })
-            );
-            sphere.position.copy(box.getCenter(new THREE.Vector3()));
-            scene.add(sphere);
-            scene.add(helper);
-        });
-    }
-
 
     // [ { name : string; box: THREE.Box3 },  ]
     probeMeta = probeBoxes.map(probe => {
@@ -531,6 +543,9 @@ btnTest1.onclick = () => {
     //     scene.add(helper)
     // })
 }
+
+        
+btnShowProbe.onclick = toggleProbe;
 
 
 animate();

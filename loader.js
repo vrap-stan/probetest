@@ -17,21 +17,21 @@ const textureLoader = new THREE.TextureLoader();
 const boxY = 2.38;
 
 const coords = [
-    {
-        name: "kitchen",
-        min: new THREE.Vector3(-2.7, 0, -4.0),
-        max: new THREE.Vector3(1.13, 0, -0.1),
-    },
-    {
-        name: "livingRoom",
-        min: new THREE.Vector3(-3.5, 0, -0.1),
-        max: new THREE.Vector3(1.12, 0, 4.4),
-    },
     // {
-    //     name: "kitchen&livingroom",
-    //     min: new THREE.Vector3(-3.5, 0, -4.0),
+    //     name: "kitchen",
+    //     min: new THREE.Vector3(-2.7, 0, -4.0),
+    //     max: new THREE.Vector3(1.13, 0, -0.1),
+    // },
+    // {
+    //     name: "livingRoom",
+    //     min: new THREE.Vector3(-3.5, 0, -0.1),
     //     max: new THREE.Vector3(1.12, 0, 4.4),
     // },
+    {
+        name: "kitchen&livingroom",
+        min: new THREE.Vector3(-3.5, 0, -4.0),
+        max: new THREE.Vector3(1.12, 0, 4.4),
+    },
 
     {
         name: "master",
@@ -44,9 +44,14 @@ const coords = [
         max: new THREE.Vector3(-4.35, 0, 1.18),
     },
     {
+        name: "entrance",
+        min: new THREE.Vector3(7.45, 0, -2.41),
+        max: new THREE.Vector3(8.50, 0, 1.01),
+    },
+    {
         name: "corridor",
         min: new THREE.Vector3(1.03, 0, 0.0),
-        max: new THREE.Vector3(8.5, 0, 1.03),
+        max: new THREE.Vector3(7.37, 0, 1.03),
     },
 
     {
@@ -64,31 +69,27 @@ const coords = [
         min: new THREE.Vector3(6.5, 0, 1.25),
         max: new THREE.Vector3(9.4, 0, 4.7),
     },
-    {
-        name: "entrance",
-        min: new THREE.Vector3(7.45, 0, -2.41),
-        max: new THREE.Vector3(8.51, 0, -0.17),
-    },
+    
     {
         name: "toilet1",
         min: new THREE.Vector3(3.19, 0, -1.80),
         max: new THREE.Vector3(5.25, 2.23, -0.31),
     },
-    // {
-    //     name: "toilet2-1",
-    //     min: new THREE.Vector3(-5.29, 0, -1.78),
-    //     max: new THREE.Vector3(-3.90, 0, -0.49),
-    // },
-    // {
-    //     name: "toilet2-2",
-    //     min: new THREE.Vector3(-5.32, 0, -2.68),
-    //     max: new THREE.Vector3(-4.27, 0, -1.86),
-    // },
-    // {
-    //     name: "masterdress",
-    //     min: new THREE.Vector3(-9.37, 0, -2.78),
-    //     max: new THREE.Vector3(-5.60, 0, -0.38),
-    // },
+    {
+        name: "toilet2-1",
+        min: new THREE.Vector3(-5.29, 0, -1.78),
+        max: new THREE.Vector3(-3.90, 0, -0.49),
+    },
+    {
+        name: "toilet2-2",
+        min: new THREE.Vector3(-5.32, 0, -2.68),
+        max: new THREE.Vector3(-4.27, 0, -1.86),
+    },
+    {
+        name: "masterdress",
+        min: new THREE.Vector3(-9.37, 0, -2.78),
+        max: new THREE.Vector3(-5.60, 0, -0.38),
+    },
 ];
 
 export function getProbeBoxes() {
@@ -266,17 +267,17 @@ function theLoader(remoteSrc, path, onMsg) {
         .then((res) => res.json())
         .then(async (data) => {
             const models = data.models;
-            // const models = [
-            //     ...data.models.slice(47, 48),
+            const filtered = [
+                ...data.models.slice(47, 48),
 
-            //     ...data.models.slice(5, 8),
-            //     ...data.models.slice(15, 18),
-            //     ...data.models.slice(33, 40),
-            // ]
+                ...data.models.slice(5, 8),
+                ...data.models.slice(15, 18),
+                ...data.models.slice(33, 40),
+            ]
 
             // const filtered = models.slice(1);
             // const filtered = models.slice(0,3);
-            const filtered = models;
+            // const filtered = models;
 
             return iter(filtered, (async (model, i) => {
                 const { glb } = model
