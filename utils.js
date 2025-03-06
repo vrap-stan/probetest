@@ -1,3 +1,5 @@
+import * as THREE from "three";
+
 // const base =
 //     "https://vra-configurator-dev.s3.ap-northeast-2.amazonaws.com/models/lmedit/clipped/";
 export const base = "https://d1ru9emggadhd3.cloudfront.net/models/lmedit/clipped/";
@@ -12,7 +14,7 @@ export function withoutExtension(path) {
     return path.replace(/\.[^/.]+$/, "");
 }
 
-export async function iter(arr, fn, parallel=true) {
+export async function iter(arr, fn, parallel = true) {
     if (parallel) {
         return Promise.all(arr.map(fn));
     } else {
@@ -34,14 +36,47 @@ export function isBoxOverlapped(boxA, boxB, threshold = 0.95) {
 
     // Calculate volumes
     const volumeA = (boxA.max.x - boxA.min.x) * (boxA.max.y - boxA.min.y) * (boxA.max.z - boxA.min.z);
-    const volumeIntersection = (intersection.max.x - intersection.min.x) * 
-                               (intersection.max.y - intersection.min.y) * 
-                               (intersection.max.z - intersection.min.z);
+    const volumeIntersection = (intersection.max.x - intersection.min.x) *
+        (intersection.max.y - intersection.min.y) *
+        (intersection.max.z - intersection.min.z);
 
     // Check if overlap is greater than or equal to 95% (or custom threshold)
     return (volumeIntersection / volumeA) >= threshold;
 }
 
 export function findOverlappingBoxes(targetBox, boxArray) {
-    return boxArray.filter(box => !targetBox.intersect(box).isEmpty());
+    return boxArray.filter(box => !new THREE.Box3().copy(targetBox).intersect(box).isEmpty());
+}
+
+export function findClosestBox(targetBox, boxArray) {
+    if (boxArray.length === 0) return null;
+
+    let closestBox = null;
+    let minDistance = Infinity;
+
+    boxArray.forEach(box => {
+        const distance = getBoxDistance(targetBox, box);
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestBox = box;
+        }
+    });
+
+    return closestBox;
+}
+
+export function getBoxDistance(boxA, boxB) {
+    // Get the closest points between the two boxes
+    const closestPointA = new THREE.Vector3();
+    const closestPointB = new THREE.Vector3();
+
+    boxA.clampPoint(boxB.min, closestPointA);
+    boxB.clampPoint(boxA.min, closestPointB);
+
+    // Compute Euclidean distance
+    return closestPointA.distanceTo(closestPointB);
+}
+
+export function removeTrailingThreeDigitNumber(str) {
+    return str.replace(/\.\d{3}$/, '');
 }

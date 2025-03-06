@@ -14,7 +14,8 @@
           "CubeCamera": "/CubeCamera.js",
           "loader": "/loader.js",
           "PmremGenerator": "/PmremGenerator.js",
-          "utils": "/utils.js"
+          "utils": "/utils.js",
+          "object-hash": "https://cdn.skypack.dev/object-hash"
         }
       }
     </script>
@@ -77,7 +78,7 @@
         <input
           type="range"
           min="0.0"
-          max="1.5"
+          max="2.5"
           step="0.01"
           value="0.0"
           id="probeIntensity"
@@ -105,7 +106,7 @@
       <div id="matWorld"></div>
       <!-- <button onclick="console.log(camera.)">Speak</button> -->
       <div style="display: flex; gap: 4px">
-        <button id="btnApplyMirror">Apply Mirror</button>
+        <button id="btnCaptureProbe">Apply Mirror</button>
         <button id="btnTest1">테스트1</button>
       </div>
     </div>

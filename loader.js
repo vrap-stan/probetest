@@ -17,22 +17,22 @@ const textureLoader = new THREE.TextureLoader();
 const boxY = 2.38;
 
 const coords = [
-    // {
-    //     name: "kitchen",
-    //     min: new THREE.Vector3(-2.7, 0, -4.0),
-    //     max: new THREE.Vector3(1.13, 0, -0.1),
-    // },
-    // {
-    //     name: "livingRoom",
-    //     min: new THREE.Vector3(-3.5, 0, -0.1),
-    //     max: new THREE.Vector3(1.12, 0, 4.4),
-    // },
     {
-        name: "kitchen&livingroom",
-        min: new THREE.Vector3(-3.5, 0, -4.0),
+        name: "kitchen",
+        min: new THREE.Vector3(-2.7, 0, -4.0),
+        max: new THREE.Vector3(1.13, 0, -0.1),
+    },
+    {
+        name: "livingRoom",
+        min: new THREE.Vector3(-3.5, 0, -0.1),
         max: new THREE.Vector3(1.12, 0, 4.4),
     },
-    
+    // {
+    //     name: "kitchen&livingroom",
+    //     min: new THREE.Vector3(-3.5, 0, -4.0),
+    //     max: new THREE.Vector3(1.12, 0, 4.4),
+    // },
+
     {
         name: "master",
         min: new THREE.Vector3(-8.1, 0, 2),
@@ -72,7 +72,7 @@ const coords = [
     {
         name: "toilet1",
         min: new THREE.Vector3(3.19, 0, -1.80),
-        max: new THREE.Vector3(5.25, 0, -0.31),
+        max: new THREE.Vector3(5.25, 2.23, -0.31),
     },
     // {
     //     name: "toilet2-1",
@@ -95,7 +95,9 @@ export function getProbeBoxes() {
 
     const retval = coords.map((coord) => {
         const { min, max } = coord;
-        max.y = boxY;
+        if (max.y < 0.1) {
+            max.y = boxY;
+        }
         return {
             name: coord.name,
             box: new THREE.Box3(min, max)
@@ -272,8 +274,9 @@ function theLoader(remoteSrc, path, onMsg) {
             //     ...data.models.slice(33, 40),
             // ]
 
-            const filtered = models.slice(1);
-            // const filtered = models;
+            // const filtered = models.slice(1);
+            // const filtered = models.slice(0,3);
+            const filtered = models;
 
             return iter(filtered, (async (model, i) => {
                 const { glb } = model

@@ -57,9 +57,13 @@ const getIBLRadiance_patch = /* glsl */`
 
 export default function useBoxProjectedEnvMap(shader, args) {
 
-    const { uniforms, defines } = args;
+    const { uniforms, defines, namehash, meshName, matName } = args;
+
+    console.log("useBoxProjectedEnvMap", args)
 
     // defines
+
+    shader.defines = shader.defines ?? {};
     shader.defines = {
         ...shader.defines,
         ...defines,
@@ -75,6 +79,8 @@ export default function useBoxProjectedEnvMap(shader, args) {
     //     value: envMapSize
     // };
 
+
+    shader.uniforms = shader.uniforms ?? {};
     shader.uniforms = {
         ...shader.uniforms,
         ...uniforms,
@@ -126,22 +132,20 @@ export default function useBoxProjectedEnvMap(shader, args) {
             `
         );
 
-        const fragRepl = "#include <lights_fragment_end>"
+    const fragRepl = "#include <lights_fragment_end>"
 
     shader.fragmentShader = shader.fragmentShader.replace("void main()",
         `
+        #ifdef V_ENV_MAP
         struct Probe {
             vec3 center;
             vec3 size;
             // samplerCube cubeTexture;
             // sampler2D envTexture;
         };
-        uniform Probe uProbe[PROBE_COUNT];
-        // uniform samplerCube uProbeTextures[PROBE_COUNT];
-        uniform samplerCube uProbeTextures[PROBE_COUNT];
-        uniform float uProbeIntensity;
-        // uniform sampler2D myenv1;
-        // uniform sampler2D myenv2;
+        uniform Probe _uProbe${namehash}[PROBE_COUNT];
+        uniform samplerCube _uProbeTextures${namehash}[PROBE_COUNT];
+        uniform float _uProbeIntensity${namehash};
 
         vec2 equirectUV(vec3 dir) {
             vec2 uv;
@@ -149,6 +153,7 @@ export default function useBoxProjectedEnvMap(shader, args) {
             uv.y = acos(dir.y) / 3.14159265359;
             return uv;
         }
+        #endif
 
 
 void main()
@@ -178,34 +183,45 @@ void main()
         float distTotal = 0.0;
 
         // 거리를 계산
+        #pragma unroll_loop_start
         for (int i = 0; i < PROBE_COUNT; i++) {
             vec3 probeCenter = uProbe[i].center;
             vec3 probeSize = uProbe[i].size;
 
-            float distFromCenter = dot(vWorldPosition-probeCenter, vWorldPosition-probeCenter);
+            // float distFromCenter = dot(vWorldPosition-probeCenter, vWorldPosition-probeCenter);
+            float distFromCenter = length(vWorldPosition-probeCenter);
             float distFromBox = distanceToAABB(vWorldPosition, probeCenter, probeSize);
             
             // dists[i] = distFromCenter + distFromBox;
             dists[i] = distFromBox;
+            // dists[i] = distFromCenter;
             // dists[i] = distFromCenter * distFromCenter;
             
             distTotal += dists[i];
         }
+        #pragma unroll_loop_end
+
+        #pragma unroll_loop_start
         for (int i = 0; i < PROBE_COUNT; i++) {
             dists[i] /= distTotal;
         }
+        #pragma unroll_loop_end
 
         int minIndex = -1;
 
         if ( true ) {
             // 가장 가까운 것만 고르기
             float minDist = 100000.0;
+            #pragma unroll_loop_start
             for (int i = 0; i < PROBE_COUNT; i++) {
                 if (dists[i] < minDist) {
                     minDist = dists[i];
                     minIndex = i;
                 }
             }
+            #pragma unroll_loop_end
+
+            #pragma unroll_loop_start
             for (int i = 0; i < PROBE_COUNT; i++) {
                 if (i == minIndex) {
                     dists[i] = 1.0;
@@ -214,8 +230,10 @@ void main()
                     dists[i] = 0.0;
                 }
             }
+            #pragma unroll_loop_end
         }
         
+        #pragma unroll_loop_start
         for (int i = 0; i < PROBE_COUNT; i++) {
         
             // pick closest uProbe
@@ -238,13 +256,18 @@ void main()
 
             float distFactor = 1.0 - dists[i];
 
-            if(vWorldPosition.y < 0.1 && false) {
-                weights[i] = reflectWeight * reflectFactor;
+            if(false) {
+                if(vWorldPosition.y < 0.1 && false) {
+                    weights[i] = reflectWeight * reflectFactor;
+                } else {
+                    weights[i] = distWeight * distFactor;
+                    // weights[i] = distWeight;
+                }
             } else {
-                // weights[i] = distWeight * distFactor;
-                // weights[i] = distWeight;
                 if(i == minIndex) {
                     weights[i] = 1.0;
+                } else {
+                    weights[i] = 0.0;
                 }
             }
 
@@ -253,6 +276,7 @@ void main()
             wTotal += weights[i];
 
         }
+        #pragma unroll_loop_end
 
         
         mat3 _envMapRotation = mat3(1.0);
@@ -420,10 +444,19 @@ void main()
         // gl_FragColor.rgb = envMapColor.rgb * envMapIntensity;
 
         radiance += clamp(envMapColor.rgb, 0.0, 1.0) * uProbeIntensity;
+        // radiance = vWorldPosition;
 
         #endif
         ` + fragRepl
     )
+
+    const showVWorldPosition = false;
+    if (showVWorldPosition) {
+        shader.fragmentShader = shader.fragmentShader.replace("#include <dithering_fragment>", `#include <dithering_fragment>
+        gl_FragColor.rgb = vWorldPosition;
+        `)
+    }
+
 
     // debugger;
 
