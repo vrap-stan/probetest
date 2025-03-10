@@ -50,7 +50,7 @@ const coords = [
     },
     {
         name: "corridor",
-        min: new THREE.Vector3(1.03, 0, 0.0),
+        min: new THREE.Vector3(1.17, 0, -0.117),
         max: new THREE.Vector3(7.37, 0, 1.03),
     },
 
@@ -94,7 +94,11 @@ const coords = [
 
 export function getProbeBoxes() {
 
-    const retval = coords.map((coord) => {
+    const target = coords;
+    // const target = coords.filter(coord=>coord.name === "kitchen&livingroom");
+
+
+    const retval = target.map((coord) => {
         const { min, max } = coord;
         if (max.y < 0.1) {
             max.y = boxY;
@@ -113,7 +117,7 @@ export function getProbeBoxes() {
 function init(onMsg) {
     scene = new THREE.Scene();
 
-    scene.add(CubeCamera);
+    // scene.add(CubeCamera);
 
     // const gridHelper = new THREE.GridHelper(20, 20);
     // scene.add(gridHelper);
@@ -267,16 +271,16 @@ function theLoader(remoteSrc, path, onMsg) {
         .then((res) => res.json())
         .then(async (data) => {
             const models = data.models;
-            const filtered = [
-                ...data.models.slice(47, 48),
+            // const filtered = [
+            //     ...data.models.slice(47, 48),
 
-                ...data.models.slice(5, 8),
-                ...data.models.slice(15, 18),
-                ...data.models.slice(33, 40),
-            ]
+            //     ...data.models.slice(5, 8),
+            //     ...data.models.slice(15, 18),
+            //     ...data.models.slice(33, 40),
+            // ]
 
-            // const filtered = models.slice(1);
-            // const filtered = models.slice(0,3);
+            const filtered = models.slice(1);
+            // const filtered = models.slice(14,20);
             // const filtered = models;
 
             return iter(filtered, (async (model, i) => {

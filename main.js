@@ -9,11 +9,18 @@ import {
     withoutExtension,
     findClosestBox,
     findOverlappingBoxes,
-    removeTrailingThreeDigitNumber
+    removeTrailingThreeDigitNumber,
+    convertCubeToEquirect,
+    detectWallOnScene,
+    deserializeArray,
+    serializeArray,
+    drawWalls
 } from "utils"
 import Loader, { getProbeBoxes } from "loader"
 import useBoxProjectedEnvMap from "BoxProjection"
 import hash from "object-hash"
+
+const probeResolution = 256;
 
 const {
     scene, camera, renderer, controls,
@@ -233,14 +240,21 @@ function hashStringArray(arr) {
     return hash.toString(16); // 16진수 문자열로 변환
 }
 
+const hashmap = new Map();
+
 
 const createOnBeforeCompileFunc = (names, mat, mesh) => {
+
     const targetNames = [...names];
     // targetNames.sort();
     const namehash = hashStringArray(targetNames);
     console.log(mesh.name, mesh.material.name, "Hash : ", namehash, mat.id, targetNames);
     mat.defines = mat.defines ?? {};
-    mat.defines.SHADER_NAME = removeTrailingThreeDigitNumber(mat.name) + namehash; // !중요 : 이름을 넣어주지 않으면 캐싱된 셰이더와 헷갈려함
+    hashmap.set(namehash, targetNames);
+
+    const SHADER_NAME = removeTrailingThreeDigitNumber(mat.name) + namehash; // !중요 : 이름을 넣어주지 않으면 캐싱된 셰이더와 헷갈려함
+
+    mat.defines.SHADER_NAME = SHADER_NAME
     // mat.name = mat.name+namehash;
 
     const metas = probeMeta.filter(p => targetNames.includes(p.name));
@@ -280,9 +294,14 @@ const createOnBeforeCompileFunc = (names, mat, mesh) => {
         uProbeTextures,
         uProbeIntensity,
         SHADER_NAME: mat.name
+        // SHADER_NAME
     }
 
     if (mesh.name === "거실DP_2") {
+        // debugger;
+    }
+
+    if (mesh.name === "현관_BASE_4") {
         // debugger;
     }
 
@@ -298,7 +317,7 @@ const createOnBeforeCompileFunc = (names, mat, mesh) => {
     }
 }
 
-const toggleProbe = ()=>{
+const toggleProbe = () => {
     if (showProbe) {
         probeBoxes.forEach((probe, i) => {
             const color = new THREE.Color().setHSL(i / probeBoxes.length, 1.0, 0.5);
@@ -312,7 +331,7 @@ const toggleProbe = ()=>{
                 new THREE.MeshBasicMaterial({ color: color })
             );
             helper.userData.isProbe = true;
-            sphere.userData.isProbe= true;
+            sphere.userData.isProbe = true;
             sphere.position.copy(box.getCenter(new THREE.Vector3()));
             scene.add(sphere);
             scene.add(helper);
@@ -332,7 +351,7 @@ const toggleProbe = ()=>{
 const createProbeMeta = () => {
     const cubeCapture = (center/**THREE.Vector3 */, name) => {
 
-        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(512, {
+        const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(probeResolution, {
             format: THREE.RGBFormat,
             generateMipmaps: true,
             minFilter: THREE.LinearMipmapLinearFilter,
@@ -350,6 +369,12 @@ const createProbeMeta = () => {
         // // generator.compileEquirectangularShader();
 
         // const envMap = generator.fromCubemap(cubeTexture).texture;
+
+        // const envMap = convertCubeToEquirect(cubeTexture, probeResolution);
+
+        // dispose
+        // cubeRenderTarget.dispose();
+        // cubeCamera.dispose();
 
         // console.log(envMap);
 
@@ -527,10 +552,12 @@ btnTest1.onclick = () => {
 
     const start = performance.now();
     status("Start probe...")
-    renderer.compileAsync(scene, camera).then(()=>{
+    renderer.compileAsync(scene, camera).then(() => {
         const elapsed = performance.now() - start;
         console.log("elapsed", elapsed);
         status(`Probe : ${elapsed.toFixed(2)} ms`);
+
+        console.log(hashmap);
     })
 
     // clones.forEach(clone => {
@@ -544,7 +571,37 @@ btnTest1.onclick = () => {
     // })
 }
 
+const wallFileName = "walls.json"
+const getWalls = async () => {
+    return fetch("/"+wallFileName).then(res => res.json()).then(deserializeArray).catch(e => {
+        // no such file
         
+        console.error(e);   
+
+        // const walls = detectWallOnScene(scene, probeBoxOnly, 0.05);
+
+        // debugger;
+
+        // const jsonobj = serializeArray(walls);
+
+        // // save it
+        // const filanme = wallFileName;
+        // const a = document.createElement("a");
+        // const file = new Blob([jsonobj], { type: "application/json" });
+        // a.href = URL.createObjectURL(file);
+        // a.download = filanme;
+        // a.click();
+
+        // return walls;
+    })
+}
+
+btnDetectWall.onclick = ()=>{
+    getWalls().then(walls=>{
+        drawWalls(walls, scene)
+    })
+}
+
 btnShowProbe.onclick = toggleProbe;
 
 

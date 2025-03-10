@@ -38,133 +38,132 @@ const boxProjectDefinitions = /*glsl */`
         return length(point - closestPoint);
     }
 
-    vec4 probeColor(int i, float roughness) {
-        vec3 worldReflectVec = reflect( - geometryViewDir, geometryNormal );
 
-        worldReflectVec = normalize(worldReflectVec);
-
-        worldReflectVec = inverseTransformDirection( worldReflectVec, viewMatrix );
-
-        vec3 localReflectVec = parallaxCorrectNormal( worldReflectVec, probeSize, probeCenter );
+    vec4 probeColor(vec3 worldReflectVec, int i, float roughness) {
+        
+        vec3 probeCenter = uProbe[i].center;
+        vec3 probeSize = uProbe[i].size;
 
         mat3 _envMapRotation = mat3(1.0);
+        vec3 localReflectVec = _envMapRotation * parallaxCorrectNormal( worldReflectVec, probeSize, probeCenter );
+
 
         vec4 envMapColor = vec4(0.0);
 
         if(i == 0){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[0], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[0], localReflectVec, roughness );
 
         }
         #if PROBE_COUNT > 1
         else if( i == 1){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[1], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[1], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 2
         else if( i == 2){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[2], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[2], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 3
         else if( i == 3){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[3], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[3], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 4
         else if( i == 4){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[4], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[4], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 5
         else if( i == 5){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[5], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[5], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 6
         else if( i == 6){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[6], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[6], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 7
         else if( i == 7){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[7], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[7], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 8
         else if( i == 8){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[8], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[8], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 9
         else if( i == 9){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[9], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[9], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 10
         else if( i == 10){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[10], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[10], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 11
         else if( i == 11){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[11], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[11], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 12
         else if( i == 12){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[12], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[12], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 13
         else if( i == 13){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[13], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[13], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 14
         else if( i == 14){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[14], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[14], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 15
         else if( i == 15){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[15], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[15], localReflectVec, roughness );
 
         }
         #endif
         #if PROBE_COUNT > 16
         else if( i == 16){
 
-            envMapColor += thisWeight * textureCube( uProbeTextures[16], _envMapRotation * localReflectVec, roughness );
+            envMapColor += textureCube( uProbeTextures[16], localReflectVec, roughness );
 
         }
         #endif
@@ -281,6 +280,7 @@ export default function useBoxProjectedEnvMap(shader, args) {
         };
         uniform Probe _uProbe${namehash}[PROBE_COUNT];
         uniform samplerCube _uProbeTextures${namehash}[PROBE_COUNT];
+        // uniform sampler2D _uProbeTextures${namehash}[PROBE_COUNT];
         uniform float _uProbeIntensity${namehash};
 
         vec2 equirectUV(vec3 dir) {
@@ -342,16 +342,16 @@ void main()
         }
         #pragma unroll_loop_end
 
-        #pragma unroll_loop_start
-        for (int i = 0; i < PROBE_COUNT; i++) {
-            dists[i] /= distTotal;
-        }
-        #pragma unroll_loop_end
+        // #pragma unroll_loop_start
+        // for (int i = 0; i < PROBE_COUNT; i++) {
+        //     dists[i] /= distTotal;
+        // }
+        // #pragma unroll_loop_end
 
         int minIndex = -1;
         int secondMinIndex = -1;
 
-        if ( true ) {
+        {
             // 가장 가까운 것만 고르기
             float minDist = 100000.0;
             #pragma unroll_loop_start
@@ -362,121 +362,49 @@ void main()
                     minIndex = i;
                 }
             }
-            #pragma unroll_loop_end
-
-            #pragma unroll_loop_start
-            for (int i = 0; i < PROBE_COUNT; i++) {
-                if (i == minIndex) {
-                    dists[i] = 1.0;
-                    distTotal = 1.0;
-                } else {
-                    dists[i] = 0.0;
+            if (secondMinIndex == -1) {
+                float secondMinDist = 100000.0;
+                for (int i = minIndex + 1; i < PROBE_COUNT; i++) {
+                    if (dists[i] < secondMinDist) {
+                        secondMinDist = dists[i];
+                        secondMinIndex = i;
+                    }
                 }
             }
+
             #pragma unroll_loop_end
+
         }
         
         vec4 envMapColor = vec4(0.0);
 
+        // envMapColor = probeColor(worldReflectVec, minIndex, roughness);
+        
         // case #1. 바닥에 있는 경우
-        if(vWorldPosition.y < 0.05) {
+        float minDist = dists[minIndex];
+        float secondMinDist = dists[secondMinIndex];
+        float minDistTotal = minDist + secondMinDist;
+        
+        // TODO : 바닥 거리에 따라 보간하기
 
-            float minDist = floorDists[minIndex];
-            float secondMinDist = floorDists[secondMinIndex];
+        if(false && (vWorldPosition.y < 0.05) && (minDistTotal > 0.01)) {
+            envMapColor = vec4(1.0);
+            // 박스 간의 거리가 가까운 지점, 거리에 따라 보간
+            // float minFactor = (minDistTotal - minDist) / minDistTotal;
+            
+            // vec4 closestColor = probeColor(worldReflectVec, minIndex, roughness);
+            // vec4 secondClosestColor = probeColor(worldReflectVec, secondMinIndex, roughness);
 
-            if(secondMinDist > 0.5) {
+            // envMapColor = closestColor * minFactor + secondClosestColor * (1.0 - minFactor);
 
-                envMapColor = probeColor(minIndex, roughness);
-
-            } else {
-                // 박스 간의 거리가 가까운 지점, 거리에 따라 보간
-                float total = minDist + secondMinDist + 0.00001;
-                float minFactor = minDist / total;
-                
-                vec4 closestColor = probeColor(minIndex, roughness);
-                vec4 secondClosestColor = probeColor(secondMinIndex, roughness);
-
-                envMapColor = closestColor * minFactor + secondClosestColor * (1.0 - minFactor);
-                
-            }
-
-        } else {
+        }
+        else {
             // case #2. 바닥이 아닌 경우
-            envMapColor = probeColor(minIndex, roughness);
+            envMapColor = probeColor(worldReflectVec, minIndex, roughness);
+            // envMapColor = probeColor(worldReflectVec, secondMinIndex, roughness);
         }
 
-
-        // #pragma unroll_loop_start
-        // for (int i = 0; i < PROBE_COUNT; i++) {
-        
-        //     // pick closest uProbe
-        //     vec3 probeCenter = uProbe[i].center;
-            
-        //     float reflectFactor = dot(normalize(worldReflectVec), normalize(probeCenter));
-
-        //     // reflectFactor = abs(clamp(reflectFactor, -1.0, 1.0));
-        //     // reflectFactor = clamp(reflectFactor, 0.0, 1.0);
-        //     reflectFactor = (clamp(reflectFactor, -0.5, 1.0));
-        //     reflectFactor = reflectFactor*reflectFactor;
-
-            
-
-        //     // 웨이트를 더 주기위해
-        //     // float a = -.1;
-        //     // float p = reflectFactor-1.;
-        //     // reflectFactor = a*p*p + 1.0;
-        //     // reflectFactor = reflectFactor*reflectFactor;
-
-        //     float distFactor = 1.0 - dists[i];
-
-        //     if(true) {
-        //         if(vWorldPosition.y < 0.05) {
-        //             float minDist = floorDists[minIndex];
-        //             float secondMinDist = floorDists[secondMinIndex];
-
-        //             if(secondMinDist > 0.5) {
-        //                 if(i == minIndex) {
-        //                     weights[i] = 1.0;
-        //                 } else {
-        //                     weights[i] = 0.0;
-        //                 }
-        //             } else {
-        //                 // 박스 간의 거리가 가까운 지점, 거리에 따라 보간
-        //                 float total = minDist + secondMinDist + 0.00001;
-        //                 float minFactor = (total - minDist) / total;
-        //                 // float secondMinFactor = (total - secondMinDist) / total;
-        //                 weights[i] = minFactor * reflectFactor;
-        //             }
-
-        //             // weights[i] = reflectWeight * reflectFactor;
-
-
-        //         } else {
-        //             // weights[i] = distWeight * distFactor;
-        //             // // weights[i] = distWeight;
-        //             if(i == minIndex) {
-        //                 weights[i] = 1.0;
-        //             } else {
-        //                 weights[i] = 0.0;
-        //             }
-        //         }
-        //     } else {
-        //         if(i == minIndex) {
-        //             weights[i] = 1.0;
-        //         } else {
-        //             weights[i] = 0.0;
-        //         }
-        //     }
-
-        //     // weights[i] = reflectWeight * reflectFactor;
-        //     // weights[i] = distWeight * distFactor;
-        //     wTotal += weights[i];
-
-        // }
-        // #pragma unroll_loop_end
-
         radiance += clamp(envMapColor.rgb, 0.0, 1.0) * uProbeIntensity;
-        // radiance = vWorldPosition;
 
         #endif
         ` + "#include <lights_fragment_end>"
