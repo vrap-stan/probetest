@@ -101,6 +101,28 @@ function toggleSelect(name) {
 
 }
 
+const wallFileName = "walls.json"
+const getWalls = async () => {
+    return fetch("/" + wallFileName).then(res => res.json()).then(deserializeArray).catch(e => {
+        // no such file
+
+        console.error(e);
+
+        const walls = detectWallOnScene(scene, probeBoxOnly, 0.05);
+
+        const jsonobj = serializeArray(walls);
+
+        // save it
+        const filanme = wallFileName;
+        const a = document.createElement("a");
+        const file = new Blob([jsonobj], { type: "application/json" });
+        a.href = URL.createObjectURL(file);
+        a.download = filanme;
+        a.click();
+
+        return walls;
+    })
+}
 
 function animate() {
     requestAnimationFrame(animate);
@@ -194,6 +216,15 @@ document.getElementById("roughness").addEventListener("input", (e) => {
     });
 });
 
+//probeBlend
+document.getElementById("probeBlend").addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+
+    shaders.forEach(shader => {
+        shader.uniforms.uProbeBlendDist.value = val;
+    })
+});
+
 //probeIntensity
 document.getElementById("probeIntensity").addEventListener("input", (e) => {
     const val = parseFloat(e.target.value);
@@ -242,8 +273,17 @@ function hashStringArray(arr) {
 
 const hashmap = new Map();
 
+/** @type { null | { start:THREE.Vector3; end:THREE.Vector3; normal:THREE.Vector3; name:string }[] } */
+let _walls = null;
 
-const createOnBeforeCompileFunc = (names, mat, mesh) => {
+const createOnBeforeCompileFunc = async (names, mat, mesh) => {
+
+    if (!_walls) {
+        _walls = await getWalls();
+    }
+
+    /** @type { { start:THREE.Vector3; end:THREE.Vector3; normal:THREE.Vector3; name:string }[] }*/
+    const allWalls = [..._walls];
 
     const targetNames = [...names];
     // targetNames.sort();
@@ -258,17 +298,43 @@ const createOnBeforeCompileFunc = (names, mat, mesh) => {
     // mat.name = mat.name+namehash;
 
     const metas = probeMeta.filter(p => targetNames.includes(p.name));
-    const metaUniform = metas.map(p => ({
+
+    /** @type { { start:THREE.Vector3; end:THREE.Vector3; index:number }[] } */
+    const targetWalls = allWalls.filter(w => targetNames.includes(w.name)).map((wall) => ({
+        start: wall.start,
+        end: wall.end,
+        index: targetNames.indexOf(wall.name)
+    }));
+
+    // const wallCounts = targetWalls.reduce((acc, w) => {
+    //     if (acc[w.index] === undefined) {
+    //         acc.push(1);
+    //     } else {
+    //         acc[w.index]++;
+    //     }
+    //     return acc;
+    // }, []);
+
+
+
+    // if(wallCounts.length>1){
+    //     debugger;
+    // }
+
+    /** @type { {center:THREE.Vector3; size:THREE.Vector3; }[] } */
+    const metaUniform = metas.map((p, index) => ({
         center: p.center,
-        size: p.size
+        size: p.size,
     }))
     const textures = metas.map(p => p.texture);
+
 
     // console.log("Names : ", targetNames, metaUniform);
 
     const uProbe = `_uProbe${namehash}`;
     const uProbeTextures = `_uProbeTextures${namehash}`;
     const uProbeIntensity = `_uProbeIntensity${namehash}`;
+    const uWall = `_uWall${namehash}`;
 
     const uniforms = {
         [uProbe]: {
@@ -279,6 +345,12 @@ const createOnBeforeCompileFunc = (names, mat, mesh) => {
         },
         [uProbeIntensity]: {
             value: 1.0
+        },
+        [uWall]: {
+            value: targetWalls
+        },
+        uProbeBlendDist: {
+            value: 8.0
         }
     };
 
@@ -290,9 +362,11 @@ const createOnBeforeCompileFunc = (names, mat, mesh) => {
 
     const defines = {
         PROBE_COUNT: metas.length,
+        WALL_COUNT: targetWalls.length,
         uProbe,
         uProbeTextures,
         uProbeIntensity,
+        uWall,
         SHADER_NAME: mat.name
         // SHADER_NAME
     }
@@ -432,7 +506,7 @@ const color8 = new THREE.Color().setHSL(0.8, 1.0, 0.5);
 const color9 = new THREE.Color().setHSL(0.9, 1.0, 0.5);
 
 
-btnTest1.onclick = () => {
+btnTest1.onclick = async () => {
     const helpers = [];
     const clones = [];
 
@@ -463,141 +537,84 @@ btnTest1.onclick = () => {
 
     ];
 
-    scene.traverse(mesh => {
+    const proms = [];
 
-
+    scene.traverse(async (mesh) => {
 
         if (mesh.isMesh) {
             const mat = mesh.material;
 
-
-
-            if (false && mesh.name === "주방base_6") {
-                const cloned = mesh.clone();
-                cloned.material = cloned.material.clone();
-                cloned.material.wireframe = true;
-                // copy world position
-                cloned.position.copy(mesh.position);
-                cloned.rotation.copy(mesh.rotation);
-                cloned.scale.copy(mesh.scale);
-                clones.push(cloned);
+            if (!mat) {
+                return;
             }
 
-            if (mat) {
+            const box = new THREE.Box3();
+            box.setFromObject(mesh);
 
-                // if (!cares.includes(mesh.name)) {
-                //     // console.log("!", mesh.name)
-                //     mat.visible = false;
-                //     return;
-                // }
+            const overlappingBoxes = findOverlappingBoxes(box, probeBoxOnly);
 
+            if (overlappingBoxes.length === 0) {
+                // throw new Error("No overlapping boxes");
+                const closestProbe = findClosestBox(box, probeBoxOnly);
+                console.log(mesh.name, " : ", closestProbe.probeName);
 
-                const box = new THREE.Box3();
-                box.setFromObject(mesh);
+                const prom = createOnBeforeCompileFunc([
+                    closestProbe.probeName
+                ], mat, mesh).then(func => {
+                    mat.onBeforeCompile = func;
+                    mat.needsUpdate = undefined;
+                    return true;
+                })
 
-                // const boxHelper = new THREE.Box3Helper(box);
-                //     helpers.push(boxHelper);
+                proms.push(prom);
 
-                const overlappingBoxes = findOverlappingBoxes(box, probeBoxOnly);
+            } else if (overlappingBoxes.length >= 1) {
 
+                // console.log("Calling createOnBeforeCompileFunc", mat.name)
 
-                if (!true) {
-                    if (overlappingBoxes.length >= 1) {
-                        console.log(mesh.name, " : ", overlappingBoxes[0].probeName);
-                        mat.onBeforeCompile = createOnBeforeCompileFunc(overlappingBoxes.map(b => b.probeName), mat, mesh);
-                        // mat.transparent = true;
-                        // mat.opacity = 0.0;
-                        mat.needsUpdate = undefined;
+                const prom = createOnBeforeCompileFunc(overlappingBoxes.map(b => b.probeName), mat, mesh).then(func => {
+                    mat.onBeforeCompile = func;
 
-                        // console.log(overlappingBoxes.length, "개 : ", overlappingBoxes.map(b => b.probeName).join(", "));
+                    // mat.program = null;
+                    // mat.needsUpdate = true;
+                    mat.needsUpdate = undefined;
+                    return true;
+                })
 
-                    } else {
-                        // mat.transparent = true;
-                        // mat.opacity = 0.0;
-                        // mat.visible = false;
-                        // mat.needsUpdate = undefined;
-                        mesh.visible = false;
-                    }
-                } else {
-                    if (overlappingBoxes.length === 0) {
-                        // throw new Error("No overlapping boxes");
-                        const closestProbe = findClosestBox(box, probeBoxOnly);
-                        console.log(mesh.name, " : ", closestProbe.probeName);
-
-                        mat.onBeforeCompile = createOnBeforeCompileFunc([
-                            closestProbe.probeName
-                        ], mat, mesh);
-                        mat.needsUpdate = undefined;
-
-                        // console.log("근처 : ", closestProbe.probeName);
-                    } else if (overlappingBoxes.length >= 1) {
-
-                        console.log("Calling createOnBeforeCompileFunc", mat.name)
-                        mat.onBeforeCompile = createOnBeforeCompileFunc(overlappingBoxes.map(b => b.probeName), mat, mesh);
-                        // mat.transparent = true;
-                        // mat.opacity = 0.0;
-                        mat.needsUpdate = undefined;
-
-                        // console.log(overlappingBoxes.length, "개 : ", overlappingBoxes.map(b => b.probeName).join(", "));
-
-                    }
-                }
-
+                proms.push(prom);
 
 
             }
         }
     });
 
+    Promise.all(proms).then(() => {
+        const start = performance.now();
+        status("Start probe...")
+        renderer.compileAsync(scene, camera).then(() => {
+            const elapsed = performance.now() - start;
+            console.log("elapsed", elapsed);
+            status(`Probe : ${elapsed.toFixed(2)} ms`);
 
-    const start = performance.now();
-    status("Start probe...")
-    renderer.compileAsync(scene, camera).then(() => {
-        const elapsed = performance.now() - start;
-        console.log("elapsed", elapsed);
-        status(`Probe : ${elapsed.toFixed(2)} ms`);
+            console.log(hashmap);
+        })
 
-        console.log(hashmap);
+        clones.forEach(clone => {
+
+            scene.add(clone);
+        });
+
+        console.log("Helpers : ", helpers.length)
+        helpers.forEach(helper => {
+            scene.add(helper)
+        })
     })
 
-    // clones.forEach(clone => {
 
-    //     scene.add(clone);
-    // });
-
-    // console.log("Helpers : ", helpers.length)
-    // helpers.forEach(helper => {
-    //     scene.add(helper)
-    // })
 }
 
-const wallFileName = "walls.json"
-const getWalls = async () => {
-    return fetch("/"+wallFileName).then(res => res.json()).then(deserializeArray).catch(e => {
-        // no such file
-        
-        console.error(e);   
-
-        // const walls = detectWallOnScene(scene, probeBoxOnly, 0.05);
-
-        // debugger;
-
-        // const jsonobj = serializeArray(walls);
-
-        // // save it
-        // const filanme = wallFileName;
-        // const a = document.createElement("a");
-        // const file = new Blob([jsonobj], { type: "application/json" });
-        // a.href = URL.createObjectURL(file);
-        // a.download = filanme;
-        // a.click();
-
-        // return walls;
-    })
-}
-
-btnDetectWall.onclick = ()=>{
-    getWalls().then(walls=>{
+btnDetectWall.onclick = () => {
+    getWalls().then(walls => {
         drawWalls(walls, scene)
     })
 }

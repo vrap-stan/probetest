@@ -17,41 +17,51 @@ const textureLoader = new THREE.TextureLoader();
 const boxY = 2.38;
 
 const coords = [
-    // {
-    //     name: "kitchen",
-    //     min: new THREE.Vector3(-2.7, 0, -4.0),
-    //     max: new THREE.Vector3(1.13, 0, -0.1),
-    // },
-    // {
-    //     name: "livingRoom",
-    //     min: new THREE.Vector3(-3.5, 0, -0.1),
-    //     max: new THREE.Vector3(1.12, 0, 4.4),
-    // },
     {
-        name: "kitchen&livingroom",
-        min: new THREE.Vector3(-3.5, 0, -4.0),
+        name: "kitchen",
+        min: new THREE.Vector3(-2.7, 0, -4.0),
+        max: new THREE.Vector3(1.13, 0, -0.1),
+    },
+    {
+        name: "livingRoom",
+        min: new THREE.Vector3(-3.5, 0, -0.1),
         max: new THREE.Vector3(1.12, 0, 4.4),
     },
+    // {
+    //     name: "kitchen&livingroom",
+    //     min: new THREE.Vector3(-3.5, 0, -4.0),
+    //     max: new THREE.Vector3(1.12, 0, 4.4),
+    // },
 
     {
         name: "master",
-        min: new THREE.Vector3(-8.1, 0, 2),
-        max: new THREE.Vector3(-4.17, 0, 4.71),
+        min: new THREE.Vector3(-8.1, 0, 1.34),
+        max: new THREE.Vector3(-4.20, 0, 4.71),
     },
     {
         name: "masterMirror",
         min: new THREE.Vector3(-8.1, 0, 0.0),
-        max: new THREE.Vector3(-4.35, 0, 1.18),
+        max: new THREE.Vector3(-4.20, 0, 1.18),
     },
+    // {
+    //     name: "entrance",
+    //     min: new THREE.Vector3(7.45, 0, -2.41),
+    //     max: new THREE.Vector3(8.50, 0, 1.01),
+    // },
+    // {
+    //     name: "corridor",
+    //     min: new THREE.Vector3(1.17, 0, -0.117),
+    //     max: new THREE.Vector3(7.37, 0, 1.03),
+    // },
     {
         name: "entrance",
         min: new THREE.Vector3(7.45, 0, -2.41),
-        max: new THREE.Vector3(8.50, 0, 1.01),
+        max: new THREE.Vector3(8.50, 0, -0.117),
     },
     {
         name: "corridor",
         min: new THREE.Vector3(1.17, 0, -0.117),
-        max: new THREE.Vector3(7.37, 0, 1.03),
+        max: new THREE.Vector3(8.50, 0, 1.03),
     },
 
     {

@@ -237,7 +237,7 @@ export const _detectWallOnScene = async (scene, boxes, step = 0.1,) => {
 }
 
 // walls : { start:THREE.Vector3; end:THREE.Vector3; normal:THREE.Vector3; name:string; }[]
-export const drawWalls = (walls, scene, normalLength=0.5) => {
+export const drawWalls = (walls, scene, normalLength = 0.5) => {
     walls.forEach((wall, i) => {
         const { start, end, normal, name } = wall;
         // add line from start to end, then add arrow on middle point using normal

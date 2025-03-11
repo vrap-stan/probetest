@@ -38,6 +38,24 @@ const boxProjectDefinitions = /*glsl */`
         return length(point - closestPoint);
     }
 
+    bool intersectRaySegment(vec2 p1, vec2 p2, vec2 ro, vec2 rd, out vec2 intersection) {
+        vec2 v1 = ro - p1;
+        vec2 v2 = p2 - p1;
+        vec2 v3 = vec2(-rd.y, rd.x); // 광선의 법선 벡터
+
+        float dotProduct = dot(v2, v3);
+        if(abs(dotProduct) < 1e-6f)
+            return false; // 광선과 선이 평행함
+
+        float t1 = (v2.x * v1.y - v2.y * v1.x) / dotProduct;
+        float t2 = dot(v1, v3) / dotProduct;
+
+        if(t1 >= 0.0f && t2 >= 0.0f && t2 <= 1.0f) {
+            intersection = ro + t1 * rd;
+            return true;
+        }
+        return false;
+    }
 
     vec4 probeColor(vec3 worldReflectVec, int i, float roughness) {
         
@@ -278,10 +296,17 @@ export default function useBoxProjectedEnvMap(shader, args) {
             // samplerCube cubeTexture;
             // sampler2D envTexture;
         };
+        struct Wall {
+            vec3 start;
+            vec3 end;
+            int index; // 프로브 인덱스, 0부터 PROBE_COUNT-1까지
+        };
         uniform Probe _uProbe${namehash}[PROBE_COUNT];
+        uniform Wall _uWall${namehash}[WALL_COUNT];
         uniform samplerCube _uProbeTextures${namehash}[PROBE_COUNT];
         // uniform sampler2D _uProbeTextures${namehash}[PROBE_COUNT];
         uniform float _uProbeIntensity${namehash};
+        uniform float uProbeBlendDist;
 
         vec2 equirectUV(vec3 dir) {
             vec2 uv;
@@ -387,16 +412,45 @@ void main()
         
         // TODO : 바닥 거리에 따라 보간하기
 
-        if(false && (vWorldPosition.y < 0.05) && (minDistTotal > 0.01)) {
-            envMapColor = vec4(1.0);
-            // 박스 간의 거리가 가까운 지점, 거리에 따라 보간
-            // float minFactor = (minDistTotal - minDist) / minDistTotal;
-            
-            // vec4 closestColor = probeColor(worldReflectVec, minIndex, roughness);
-            // vec4 secondClosestColor = probeColor(worldReflectVec, secondMinIndex, roughness);
+        if(vWorldPosition.y < 0.05) {
+            vec3 localReflectVec = parallaxCorrectNormal( worldReflectVec, uProbe[minIndex].size, uProbe[minIndex].center );
 
-            // envMapColor = closestColor * minFactor + secondClosestColor * (1.0 - minFactor);
+            int closestWallIndex = -1;
+            int closestProbeIndex = minIndex;
+            int ignoreProbes[PROBE_COUNT];
+            float maxDist = uProbeBlendDist;
 
+            #pragma unroll_loop_start
+            for(int i = 0; i < PROBE_COUNT; ++i){
+                ignoreProbes[i] = 0;
+            }
+            #pragma unroll_loop_end
+
+            float closestWallDist = maxDist;
+
+            #pragma unroll_loop_start
+            for (int i = 0; i < WALL_COUNT; ++i) {
+                vec2 start = uWall[i].start.xz;
+                vec2 end = uWall[i].end.xz;
+                int probeIndex = uWall[i].index;
+
+                vec2 origin = vWorldPosition.xz;
+                vec2 ray = worldReflectVec.xz;
+                vec2 intersection = vec2(0.0);
+
+                if(intersectRaySegment(start, end, origin, ray, intersection)){
+                    ignoreProbes[probeIndex] = 1;
+                    float dist = length(intersection - origin);
+                    if(dist < closestWallDist){
+                        closestWallDist = dist;
+                        closestWallIndex = i;
+                        closestProbeIndex = probeIndex;
+                    }
+                }
+            }    
+            #pragma unroll_loop_end
+
+            envMapColor = probeColor(worldReflectVec, closestProbeIndex, roughness);
         }
         else {
             // case #2. 바닥이 아닌 경우
